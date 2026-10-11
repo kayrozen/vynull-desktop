@@ -223,3 +223,7 @@
 .lib dl.ro dd.dim{color:var(--faint)}
 .lib .fg .hit{position:absolute;top:0;bottom:0;left:-6px;width:14px;cursor:ew-resize;z-index:2}
 .lib .fg span{cursor:ew-resize;pointer-events:none}
+.lib .rw.ed{cursor:grab;touch-action:none;user-select:none}
+.lib .rw.ed:hover{outline:1px dashed var(--line2);outline-offset:-2px}
+.lib .rw.dg{opacity:.45}
+.lib .dropline{position:absolute;left:0;right:0;height:3px;margin-top:-2px;background:#FFC15A;border-radius:2px;z-index:3;pointer-events:none;box-shadow:0 0 8px rgba(255,193,90,.7)}

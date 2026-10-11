@@ -43,6 +43,29 @@ fn header_label(c: Col, queue_view: bool) -> &'static str {
     }
 }
 
+/// A row being dragged to a new place in a playlist.
+#[derive(Clone, Copy, PartialEq)]
+struct RowDrag {
+    id: i64,
+    from: usize,
+    to: usize,
+    y: f64,
+    rows_top: f64,
+    rows_bottom: f64,
+    spacer_top: f64,
+    scroll0: f64,
+}
+
+impl RowDrag {
+    /// The row index the pointer is over, from the list's position when the drag began
+    /// and how far it has scrolled since. Kept inside the list.
+    fn target(&self, y: f64, scroll_now: f64, row_h: f64, count: usize) -> usize {
+        let top = self.spacer_top - (scroll_now - self.scroll0);
+        let i = ((y - top) / row_h).floor();
+        (i.max(0.0) as usize).min(count.saturating_sub(1))
+    }
+}
+
 #[derive(Clone, PartialEq)]
 struct Toast {
     msg: String,
@@ -424,34 +447,31 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
 
     // Playlist order: only for a plain playlist, and only while the list shows it as it is
     // stored (no sort, search or tag filter), since the order edited is the stored one.
-    let reorder_ok = use_memo(move || {
+    let is_plain_playlist = use_memo(move || {
         let Source::Playlist(pid) = source() else {
             return false;
         };
-        let editable = lib
-            .read()
+        lib.read()
             .playlists
             .iter()
-            .any(|p| p.id == pid && !p.is_smart && !p.is_folder && !p.read_only);
-        editable && sort.read().is_empty() && q().trim().is_empty() && tag_sel().is_empty()
+            .any(|p| p.id == pid && !p.is_smart && !p.is_folder && !p.read_only)
     });
+    let unfiltered =
+        use_memo(move || sort.read().is_empty() && q().trim().is_empty() && tag_sel().is_empty());
+    // Edit mode: rows are dragged to a new place. It ends with the playlist or as soon as a filter is on.
+    let mut editing = use_signal(|| false);
+    use_effect(move || {
+        if !is_plain_playlist() || !unfiltered() {
+            editing.set(false);
+        }
+    });
+    // (track id, index it started at, index it would land on, pointer y, geometry) while dragging.
+    let mut dragging = use_signal(|| None::<RowDrag>);
     let c_order = client.clone();
-    let move_in_playlist = use_callback(move |(id, delta): (i64, isize)| {
+    let save_order = use_callback(move |ids: Vec<i64>| {
         let Source::Playlist(pid) = source() else {
             return;
         };
-        let mut ids: Vec<i64> = {
-            let st = lib.read();
-            visible().iter().map(|&i| st.tracks[i].id).collect()
-        };
-        let Some(at) = ids.iter().position(|x| *x == id) else {
-            return;
-        };
-        let to = at as isize + delta;
-        if to < 0 || to >= ids.len() as isize {
-            return;
-        }
-        ids.swap(at, to as usize);
         pl_order.set(Some((pid, ids.clone())));
         let c = c_order.clone();
         spawn(async move {
@@ -462,6 +482,28 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                     pl_order.set(None);
                     flash(format!("COULD NOT SAVE THE ORDER: {e}"), None);
                 }
+            }
+        });
+    });
+    // Start dragging a row: measure where the list sits so the pointer can be turned into a row index.
+    let start_drag = use_callback(move |(id, y): (i64, f64)| {
+        let at = visible()
+            .iter()
+            .position(|&i| lib.read().tracks[i].id == id)
+            .unwrap_or(0);
+        spawn(async move {
+            let geo = crate::dom::list_geometry(".lib .rows", ".lib .rows .spacer").await;
+            if let Some((rows_top, rows_bottom, spacer_top, scroll0)) = geo {
+                dragging.set(Some(RowDrag {
+                    id,
+                    from: at,
+                    to: at,
+                    y,
+                    rows_top,
+                    rows_bottom,
+                    spacer_top,
+                    scroll0,
+                }));
             }
         });
     });
@@ -574,7 +616,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
     let wave_h = (row_h as u32).saturating_sub(8).max(14) * 2;
     let source_now = source();
     let queue_view = source_now == Source::Queue;
-    let col_style = cols_now.css_vars(if queue_view || reorder_ok() { 200 } else { 104 });
+    let col_style = cols_now.css_vars(if queue_view { 200 } else { 104 });
     let queue_now = queue();
     let queued_secs: i64 = queue_now
         .ids
@@ -746,6 +788,16 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                     }
                                     div { class: "sugf", "UP AND DOWN TO MOVE  ENTER TO PICK  ESC TO CLOSE" }
                                 }
+                            }
+                        }
+                        if is_plain_playlist() {
+                            button {
+                                class: if editing() { "btn on" } else { "btn" },
+                                disabled: !unfiltered(),
+                                title: if !unfiltered() { "Clear the search, the tag filter and the column sort to edit the order" } else if editing() { "Stop editing the order" } else { "Drag tracks to change the order of this playlist" },
+                                "aria-pressed": "{editing()}",
+                                onclick: move |_| editing.toggle(),
+                                if editing() { "DONE" } else { "EDIT ORDER" }
                             }
                         }
                         div { style: "position:relative",
@@ -988,6 +1040,14 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                             Load::Ready => rsx! {},
                         }
                         div { class: "spacer", style: "height:{shown as f64 * row_h}px",
+                            if let Some(d) = dragging() {
+                                // The line sits above the row the track would land before, or under the last row.
+                                {
+                                    let line_row = if d.to > d.from { d.to + 1 } else { d.to };
+                                    let line_top = line_row as f64 * row_h;
+                                    rsx! { div { class: "dropline", style: "top:{line_top}px" } }
+                                }
+                            }
                             div { class: "win", style: "top:{first as f64 * row_h}px",
                                 for &i in &rows_idx[first..last] {
                                     {
@@ -1008,18 +1068,13 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                                 load_open: opened,
                                                 in_queue: queue_now.contains(id),
                                                 queue_view,
-                                                reorder: reorder_ok(),
+                                                editing: editing(),
+                                                dragged: dragging().is_some_and(|d| d.id == id),
+                                                on_grab: move |y: f64| start_drag.call((id, y)),
                                                 wave_w: wave_w,
                                                 wave_h: wave_h,
                                                 played: queue_view && queue_now.is_played(id),
                                                 on_q: move |a: QAction| {
-                                                    if !queue_view {
-                                                        match a {
-                                                            QAction::Up => return move_in_playlist.call((id, -1)),
-                                                            QAction::Down => return move_in_playlist.call((id, 1)),
-                                                            _ => {}
-                                                        }
-                                                    }
                                                     let mut q = queue.write();
                                                     match a {
                                                         QAction::Toggle => q.toggle(id),
@@ -1058,6 +1113,38 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                         in_queue: queue_now.contains(id),
                         on_queue: move |_| queue.write().toggle(id),
                     }
+                }
+            }
+            // While a row is dragged a full-screen layer owns the pointer, as when resizing a column.
+            if let Some(d) = dragging() {
+                div {
+                    class: "rsz-shield",
+                    style: "cursor:grabbing",
+                    onpointermove: move |e| {
+                        let y = e.client_coordinates().y;
+                        let n = visible().len();
+                        // Near the top or bottom edge the list scrolls under the pointer.
+                        let edge = 70.0;
+                        if y < d.rows_top + edge || y > d.rows_bottom - edge {
+                            let dy = if y < d.rows_top + edge { -24 } else { 24 };
+                            spawn(async move { crate::dom::scroll_list_by(".lib .rows", dy).await; });
+                        }
+                        let to = d.target(y, *scroll_top.peek(), row_h, n);
+                        dragging.set(Some(RowDrag { to, y, ..d }));
+                    },
+                    onpointerup: move |_| {
+                        let cur = dragging.peek().unwrap_or(d);
+                        dragging.set(None);
+                        if cur.to != cur.from {
+                            let st = lib.read();
+                            let mut ids: Vec<i64> = visible().iter().map(|&i| st.tracks[i].id).collect();
+                            drop(st);
+                            let moved = ids.remove(cur.from);
+                            ids.insert(cur.to.min(ids.len()), moved);
+                            save_order.call(ids);
+                        }
+                    },
+                    onpointerleave: move |_| dragging.set(None),
                 }
             }
             if let Some(t) = toast() {
@@ -1106,8 +1193,11 @@ struct RowProps {
     in_queue: bool,
     queue_view: bool,
     played: bool,
-    /// Show the playlist's move up and down buttons.
-    reorder: bool,
+    /// The playlist is being reordered: the row is dragged, not opened.
+    editing: bool,
+    /// This row is the one being dragged.
+    dragged: bool,
+    on_grab: EventHandler<f64>,
     /// Pixel size to ask the daemon for the row thumbnail at.
     wave_w: u32,
     wave_h: u32,
@@ -1163,9 +1253,11 @@ fn Row(props: RowProps) -> Element {
     let style = format!("border-left-color:{border};{}", props.tint);
     let stars = t.rating.clamp(0, 5);
     let row_class = format!(
-        "rw{}{}",
+        "rw{}{}{}{}",
         if props.selected { " on" } else { "" },
-        if props.played { " pd" } else { "" }
+        if props.played { " pd" } else { "" },
+        if props.editing { " ed" } else { "" },
+        if props.dragged { " dg" } else { "" }
     );
     rsx! {
         div {
@@ -1173,7 +1265,14 @@ fn Row(props: RowProps) -> Element {
             style: "{style}",
             role: "button",
             tabindex: "0",
-            onclick: move |_| props.on_pick.call(()),
+            title: if props.editing { "Drag to move this track" } else { "" },
+            onclick: move |_| if !props.editing { props.on_pick.call(()) },
+            onpointerdown: move |e| {
+                if props.editing {
+                    e.prevent_default();
+                    props.on_grab.call(e.client_coordinates().y);
+                }
+            },
             span { class: "c-cl", i { class: "cdot", style: "{cdot}" } }
             div { class: "c-a", style: "{art_style(t.id)}",
                 if let Some(url) = art { img { src: "{url}", alt: "", loading: "lazy", onerror: move |_| art_failed.set(true) } }
@@ -1212,12 +1311,6 @@ fn Row(props: RowProps) -> Element {
                     span { class: "ldb", role: "button", tabindex: "0", title: "Remove from the queue", "aria-label": "Remove from the queue",
                         onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Remove); }, "✕" }
                 } else {
-                    if props.reorder {
-                        span { class: "ldb", role: "button", tabindex: "0", title: "Move up in the playlist", "aria-label": "Move up in the playlist",
-                            onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Up); }, "▲" }
-                        span { class: "ldb", role: "button", tabindex: "0", title: "Move down in the playlist", "aria-label": "Move down in the playlist",
-                            onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Down); }, "▼" }
-                    }
                     span {
                         class: if props.in_queue { "ldb on" } else { "ldb" },
                         role: "button",
