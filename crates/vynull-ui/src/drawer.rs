@@ -191,6 +191,9 @@ pub struct DrawerProps {
     pub on_close: EventHandler<()>,
     pub on_load: EventHandler<i64>,
     pub on_flash: EventHandler<String>,
+    /// Whether the track is in the queue, and a toggle for it.
+    pub in_queue: bool,
+    pub on_queue: EventHandler<()>,
 }
 
 #[component]
@@ -896,6 +899,13 @@ pub fn Drawer(props: DrawerProps) -> Element {
                 div { class: "kv", span { "KEY" } b { "{track.key}" } }
                 div { class: "kv", span { "LENGTH" } b { "{mmss(track.duration)}" } }
                 span { class: "sp" }
+                button {
+                    class: if props.in_queue { "btn on" } else { "btn" },
+                    title: if props.in_queue { "Remove this track from the queue" } else { "Add this track to the queue" },
+                    "aria-pressed": "{props.in_queue}",
+                    onclick: move |_| props.on_queue.call(()),
+                    if props.in_queue { "IN QUEUE ✕" } else { "+ QUEUE" }
+                }
                 span { class: "ldg",
                     span { class: "sh2", "LOAD ON" }
                     if props.decks.is_empty() { span { class: "mut", "NO PLAYERS" } }

@@ -323,9 +323,12 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         });
     });
 
+    // The order the user just gave a playlist, shown until the daemon's own answer arrives.
+    let mut pl_order = use_signal(|| None::<(i64, Vec<i64>)>);
+
     // Tracks of the selected playlist, evaluated by the daemon (smart playlists too).
     let c = client.clone();
-    let playlist_ids = use_resource(move || {
+    let mut playlist_ids = use_resource(move || {
         let src = source();
         let c = c.clone();
         async move {
@@ -338,6 +341,11 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                 Source::Collection | Source::Queue | Source::History => None,
             }
         }
+    });
+
+    use_effect(move || {
+        let _ = playlist_ids.read();
+        pl_order.set(None);
     });
 
     // Today's plays, newest first, as library tracks.
@@ -374,7 +382,10 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                 .collect()
         };
         let base: Vec<usize> = match (source(), &*playlist_ids.read()) {
-            (Source::Playlist(_), Some(Some(ids))) => by_ids(ids),
+            (Source::Playlist(pid), Some(Some(ids))) => match &*pl_order.read() {
+                Some((oid, order)) if *oid == pid => by_ids(order),
+                _ => by_ids(ids),
+            },
             (Source::Playlist(_), _) => Vec::new(),
             (Source::Queue, _) => by_ids(&queue().ids),
             (Source::History, _) => by_ids(&history_today()),
@@ -409,6 +420,50 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
             sort.read().apply(&st.tracks, &mut out);
         }
         out
+    });
+
+    // Playlist order: only for a plain playlist, and only while the list shows it as it is
+    // stored (no sort, search or tag filter), since the order edited is the stored one.
+    let reorder_ok = use_memo(move || {
+        let Source::Playlist(pid) = source() else {
+            return false;
+        };
+        let editable = lib
+            .read()
+            .playlists
+            .iter()
+            .any(|p| p.id == pid && !p.is_smart && !p.is_folder && !p.read_only);
+        editable && sort.read().is_empty() && q().trim().is_empty() && tag_sel().is_empty()
+    });
+    let c_order = client.clone();
+    let move_in_playlist = use_callback(move |(id, delta): (i64, isize)| {
+        let Source::Playlist(pid) = source() else {
+            return;
+        };
+        let mut ids: Vec<i64> = {
+            let st = lib.read();
+            visible().iter().map(|&i| st.tracks[i].id).collect()
+        };
+        let Some(at) = ids.iter().position(|x| *x == id) else {
+            return;
+        };
+        let to = at as isize + delta;
+        if to < 0 || to >= ids.len() as isize {
+            return;
+        }
+        ids.swap(at, to as usize);
+        pl_order.set(Some((pid, ids.clone())));
+        let c = c_order.clone();
+        spawn(async move {
+            match c.set_playlist_tracks(pid, &ids).await {
+                // Read it back: the daemon's answer replaces the order shown meanwhile.
+                Ok(()) => playlist_ids.restart(),
+                Err(e) => {
+                    pl_order.set(None);
+                    flash(format!("COULD NOT SAVE THE ORDER: {e}"), None);
+                }
+            }
+        });
     });
 
     let sugs = use_memo(move || -> Vec<SugView> {
@@ -519,7 +574,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
     let wave_h = (row_h as u32).saturating_sub(8).max(14) * 2;
     let source_now = source();
     let queue_view = source_now == Source::Queue;
-    let col_style = cols_now.css_vars(if queue_view { 200 } else { 104 });
+    let col_style = cols_now.css_vars(if queue_view || reorder_ok() { 200 } else { 104 });
     let queue_now = queue();
     let queued_secs: i64 = queue_now
         .ids
@@ -953,10 +1008,18 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                                 load_open: opened,
                                                 in_queue: queue_now.contains(id),
                                                 queue_view,
+                                                reorder: reorder_ok(),
                                                 wave_w: wave_w,
                                                 wave_h: wave_h,
                                                 played: queue_view && queue_now.is_played(id),
                                                 on_q: move |a: QAction| {
+                                                    if !queue_view {
+                                                        match a {
+                                                            QAction::Up => return move_in_playlist.call((id, -1)),
+                                                            QAction::Down => return move_in_playlist.call((id, 1)),
+                                                            _ => {}
+                                                        }
+                                                    }
                                                     let mut q = queue.write();
                                                     match a {
                                                         QAction::Toggle => q.toggle(id),
@@ -992,6 +1055,8 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                         on_close: move |_| select.call(None),
                         on_load: move |deck: i64| request_load.call((id, deck)),
                         on_flash: move |m: String| flash(m, None),
+                        in_queue: queue_now.contains(id),
+                        on_queue: move |_| queue.write().toggle(id),
                     }
                 }
             }
@@ -1041,6 +1106,8 @@ struct RowProps {
     in_queue: bool,
     queue_view: bool,
     played: bool,
+    /// Show the playlist's move up and down buttons.
+    reorder: bool,
     /// Pixel size to ask the daemon for the row thumbnail at.
     wave_w: u32,
     wave_h: u32,
@@ -1145,6 +1212,12 @@ fn Row(props: RowProps) -> Element {
                     span { class: "ldb", role: "button", tabindex: "0", title: "Remove from the queue", "aria-label": "Remove from the queue",
                         onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Remove); }, "✕" }
                 } else {
+                    if props.reorder {
+                        span { class: "ldb", role: "button", tabindex: "0", title: "Move up in the playlist", "aria-label": "Move up in the playlist",
+                            onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Up); }, "▲" }
+                        span { class: "ldb", role: "button", tabindex: "0", title: "Move down in the playlist", "aria-label": "Move down in the playlist",
+                            onclick: move |e| { e.stop_propagation(); props.on_q.call(QAction::Down); }, "▼" }
+                    }
                     span {
                         class: if props.in_queue { "ldb on" } else { "ldb" },
                         role: "button",

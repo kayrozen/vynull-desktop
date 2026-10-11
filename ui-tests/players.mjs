@@ -54,6 +54,11 @@ ok('OFF marks none', (await mics()) === 0);
 await page.evaluate(() => localStorage.removeItem('vynull.vocal'));
 await page.reload(); await page.waitForSelector('.pcs .phs.full .ph1', { timeout: 20000 }); await sleep(500);
 
+ok('MASTER and SYNC are always shown, lit only when on', await page.evaluate(() => [...document.querySelectorAll('.pcs article')].every((a) => { const b = [...a.querySelectorAll('.pch .bdg')].map((x) => x.textContent); return b.includes('MASTER') && b.includes('SYNC') || a.textContent.includes('NO TRACK'); })));
+ok('the master deck lights MASTER and the others do not', await page.evaluate(() => { const lit = (a, t) => !![...a.querySelectorAll('.pch .bdg.ms')].find((x) => x.textContent === t); const d = [...document.querySelectorAll('.pcs article')]; return lit(d[0], 'MASTER') && !lit(d[1], 'MASTER') && !lit(d[2], 'MASTER'); }));
+ok('SYNC is lit on the decks in sync (1 and 3) only', await page.evaluate(() => { const lit = (a) => !![...a.querySelectorAll('.pch .bdg.sy')].length; const d = [...document.querySelectorAll('.pcs article')]; return lit(d[0]) && !lit(d[1]) && lit(d[2]); }));
+ok('an external-source deck gets its waveform from the deck USB (after the daemon has read it)', !!(await until(() => page.evaluate(() => { const a = document.querySelectorAll('.pcs article')[2]; return a.querySelectorAll('.ov svg path[fill^="rgb("]').length > 5 && !/NO WAVEFORM|WAITING/.test(a.querySelector('.ov').textContent); }), 20000)));
+ok('and its cue from the USB is marked', await page.evaluate(() => document.querySelectorAll('.pcs article')[2].querySelectorAll('.ov svg path').length > 1));
 const a = info.phd;
 await sleep(1500);
 const b = await page.evaluate(() => [...document.querySelectorAll('.phd')].map((e) => parseFloat(e.style.left)));

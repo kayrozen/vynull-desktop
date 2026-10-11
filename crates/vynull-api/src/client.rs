@@ -344,6 +344,12 @@ impl Client {
         Ok(resp.bytes().await?.to_vec())
     }
 
+    /// The analysis of a track a deck plays from its own media. `path` is the player's
+    /// `analysis_url`. A 404 means the daemon has not read it yet: ask again later.
+    pub async fn ext_analysis(&self, path: &str) -> Result<ExtAnalysis, Error> {
+        self.get(path).await
+    }
+
     /// URL of the server-rendered waveform PNG.
     pub fn waveform_png_url(&self, id: i64, w: u32, h: u32) -> String {
         self.url(&format!("/api/analysis/waveform-png/{id}?w={w}&h={h}"))

@@ -64,6 +64,7 @@ PLAYLISTS = [
      "rules": {"combinator": "all", "conditions": [{"field": "genre", "operator": "is", "value": "Drum & Bass"}]}},
 ]
 NEXT_PLAYLIST = [10]
+EXT_ASKS = {}
 NEXT_ID = {"tag": 100, "cat": 100}
 
 SETTINGS = {
@@ -123,7 +124,7 @@ def players():
         out.append({
             "device_number": n, "name": "CDJ-3000", "track_id": tid, "track_title": d["title"] if d else "", "artist": d["artist"] if d else "",
             "bpm": bpm, "pitch_pct": pitch, "key": key, "external": ext, "source": "own usb" if ext else "vynull",
-            "is_playing": playing, "is_master": master, "is_sync": False, "on_air": onair, "beat_in_bar": ((beats - 1) % 4) + 1,
+            "analysis_url": "/api/analysis/ext/3/3/%d" % tid if ext else "", "is_playing": playing, "is_master": master, "is_sync": n in (1, 3), "on_air": onair, "beat_in_bar": ((beats - 1) % 4) + 1,
             "beat_in_track": beats, "beat_age_ms": age, "duration_ms": (d["duration"] * 1000 if d else 0),
             "play_state": 3 if playing else 5, "play_state_name": state,
         })
@@ -347,6 +348,15 @@ class H(BaseHTTPRequestHandler):
                 return self.send(404, b"not found", "text/plain")
             tracks = smart_tracks(pl["rules"]) if pl.get("is_smart") and pl.get("rules") else [BY_ID[i] for i in pl["track_ids"] if i in BY_ID]
             return self.send(200, tracks)
+        if p.startswith("/api/analysis/ext/"):
+            # What a deck reads from its own USB: 404 for the first two asks, as the real daemon does until it has read it.
+            EXT_ASKS[p] = EXT_ASKS.get(p, 0) + 1
+            if EXT_ASKS[p] < 3:
+                return self.send(404, b"not fetched yet", "text/plain")
+            tid = int(p.rsplit("/", 1)[1])
+            return self.send(200, {"track_id": tid, "duration_ms": 120000, "bpm": 126, "sample_rate": 150,
+                                   "waveform": [{"r": (i // 40) % 8, "g": (i // 60 + 3) % 8, "b": (i // 80) % 8, "h": 4 + (i * 3) % 27} for i in range(150 * 120)],
+                                   "cues": [{"number": 1, "type": "cue", "time_ms": 30000, "loop_ms": -1, "color_id": 0, "label": ""}], "beats": []})
         if p.startswith("/api/analysis/waveform/") and q.get("type", [""])[0] == "detail" and q.get("style", ["spectral"])[0] == "spectral":
             # PWV5-like: 150 entries a second, band weights 0-7 and a height 0-31.
             tid = int(p.rsplit("/", 1)[1])

@@ -10,6 +10,7 @@ use crate::live::Feed;
 use crate::phrases::PhraseStrip;
 use crate::shell::{ClientCtx, LookCtx, Tab};
 use vynull_api::WaveEntrySpectral;
+use vynull_platform::time;
 
 #[component]
 pub fn Players(feed: Feed, base: String, goto: EventHandler<Tab>) -> Element {
@@ -170,10 +171,39 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
     } = use_context::<LookCtx>();
     let spectral_style = colors().spectral(&daemon_wave());
     let half = daemon_overview() == "half";
-    let overview = use_resource(use_reactive!(|(id, external, spectral_style, half)| {
+    // A track from the deck's own USB or SD has no library id: its waveform and cues come from
+    // `analysis_url`, which answers 404 until the daemon has read them over NFS, so ask again.
+    let analysis_url = p.analysis_url.clone();
+    let overview = use_resource(use_reactive!(|(
+        id,
+        external,
+        spectral_style,
+        half,
+        analysis_url,
+    )| {
         let c = c.clone();
         async move {
-            if id <= 0 || external {
+            if external {
+                if analysis_url.is_empty() {
+                    return None;
+                }
+                for _ in 0..40 {
+                    if let Ok(a) = c.ext_analysis(&analysis_url).await {
+                        if a.waveform.is_empty() {
+                            return None;
+                        }
+                        // Only the CDJ's own RGB data exists here, so the three-band style falls back to blue.
+                        let style = spectral_style.unwrap_or(waveform::Spectral::Blue);
+                        return Some(Overview {
+                            paths: waveform::spectral_overview(&a.waveform, style, half),
+                            cue_ms: a.cues.iter().map(|q| q.time_ms).collect(),
+                        });
+                    }
+                    time::sleep(std::time::Duration::from_secs(3)).await;
+                }
+                return None;
+            }
+            if id <= 0 {
                 return None;
             }
             let paths = match spectral_style {
@@ -245,7 +275,8 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
                 span { class: "pn", "P{p.device_number}" }
                 span { class: "mono mut", "{p.name}" }
                 span { class: "{state_cls}", "{state}" }
-                if p.is_master { span { class: "bdg ms", "MASTER" } }
+                span { class: if p.is_master { "bdg ms" } else { "bdg off" }, title: if p.is_master { "This deck is the tempo master" } else { "Not the tempo master" }, "MASTER" }
+                span { class: if p.is_sync { "bdg sy" } else { "bdg off" }, title: if p.is_sync { "Sync is on" } else { "Sync is off" }, "SYNC" }
                 if p.on_air { span { class: "bdg pl", "ON AIR" } }
                 span { class: "sp" }
                 if p.external { span { class: "bdg ex", "EXT METADATA" } }
@@ -296,7 +327,7 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
                         }
                         _ => rsx! {
                             div { class: "empty", style: "min-height:0;height:100%;border:0",
-                                if external { "NO WAVEFORM FOR EXTERNAL TRACKS YET" } else { "NO WAVEFORM" }
+                                if external { "WAITING FOR THE DECK'S WAVEFORM…" } else { "NO WAVEFORM" }
                             }
                         },
                     }

@@ -459,6 +459,27 @@ pub struct Waveform<E> {
     pub entries: Vec<E>,
 }
 
+/// `GET /api/analysis/ext/{player}/{slot}/{trackID}`: the analysis a deck reads from its own USB or SD.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ExtAnalysis {
+    #[serde(default)]
+    pub track_id: i64,
+    #[serde(default)]
+    pub duration_ms: i64,
+    #[serde(default)]
+    pub bpm: f64,
+    /// Always 150.
+    #[serde(default)]
+    pub sample_rate: i64,
+    #[serde(default, deserialize_with = "null_default")]
+    pub waveform: Vec<WaveEntrySpectral>,
+    #[serde(default, deserialize_with = "null_default")]
+    pub cues: Vec<CueInfo>,
+    /// Beat times in ms.
+    #[serde(default, deserialize_with = "null_default")]
+    pub beats: Vec<f64>,
+}
+
 /// `detail&style=3band` column, 0-255 per band.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WaveEntry3Band {
