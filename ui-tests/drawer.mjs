@@ -241,8 +241,8 @@ for (let i = 0; i < 40; i++) { await sleep(100); seen.push(toMs(await timecode()
 ok('a loop cue keeps playback inside the loop', Math.max(...seen) <= 2700 && Math.min(...seen) >= 900 && seen.some((v) => v > 2300), `min ${Math.min(...seen)} max ${Math.max(...seen)} ms`);
 ok('the info line names the loop', await page.evaluate(() => /LOOP 00:01\.0 - 00:02\.5/.test(document.querySelector('.drw .pinfo').textContent)));
 await btn('.drw .btn.sm', 'EXIT LOOP');
-await sleep(1800);
-ok('exiting the loop lets playback continue past it', toMs(await timecode()) > 2700, await timecode());
+// A slow runner's audio clock can lag, so wait for it rather than for a fixed time.
+ok('exiting the loop lets playback continue past it', !!(await until(async () => toMs(await timecode()) > 2700, 8000)), await timecode());
 await page.keyboard.press(' ');
 await btn('.drw .dh .btn', 'CLOSE');
 ok('CLOSE hides the drawer', await until(() => page.evaluate(() => !document.querySelector('.drw'))));
