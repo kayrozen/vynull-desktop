@@ -58,15 +58,44 @@ pub fn mirrored_path(values: &[f64], amplitude: f64) -> String {
     format!("M{}Z", pts.join("L"))
 }
 
+/// A bottom-anchored outline (the CDJ's half overview): bars grow up from the
+/// floor and are as tall as the mirrored ones are in total.
+pub fn half_path(values: &[f64], amplitude: f64) -> String {
+    let h = |v: f64| (v * amplitude * 2.0).clamp(0.6, VIEW_H);
+    let top = values
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| format!("{i} {:.1}", VIEW_H - h(v)));
+    let floor = values
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(i, _)| format!("{i} {VIEW_H}"));
+    let pts: Vec<String> = top.chain(floor).collect();
+    if pts.is_empty() {
+        return String::new();
+    }
+    format!("M{}Z", pts.join("L"))
+}
+
+/// The outline of one band in the overview type the daemon asks for.
+pub fn band_path(values: &[f64], amplitude: f64, half: bool) -> String {
+    if half {
+        half_path(values, amplitude)
+    } else {
+        mirrored_path(values, amplitude)
+    }
+}
+
 /// Paths for a `color_preview` waveform. Empty input gives empty paths.
-pub fn overview_paths(entries: &[WaveEntryColorPreview]) -> OverviewPaths {
+pub fn overview_paths(entries: &[WaveEntryColorPreview], half: bool) -> OverviewPaths {
     if entries.is_empty() {
         return OverviewPaths::default();
     }
     OverviewPaths {
-        lo: mirrored_path(&column_max(entries, VIEW_W, |e| e.bass), 49.0),
-        mi: mirrored_path(&column_max(entries, VIEW_W, |e| e.mid), 38.0),
-        hi: mirrored_path(&column_max(entries, VIEW_W, |e| e.treble), 26.0),
+        lo: band_path(&column_max(entries, VIEW_W, |e| e.bass), 49.0, half),
+        mi: band_path(&column_max(entries, VIEW_W, |e| e.mid), 38.0, half),
+        hi: band_path(&column_max(entries, VIEW_W, |e| e.treble), 26.0, half),
         ..OverviewPaths::default()
     }
 }
@@ -134,7 +163,7 @@ mod tests {
     #[test]
     fn paths_have_one_point_pair_per_column() {
         let entries: Vec<_> = (0..1000).map(|i| e((i % 256) as u8, 100, 50)).collect();
-        let p = overview_paths(&entries);
+        let p = overview_paths(&entries, false);
         // 400 up points + 400 down points, one 'M' and the 'Z'.
         assert_eq!(p.lo.matches('L').count(), 2 * VIEW_W - 1);
         assert!(p.lo.starts_with("M0 ") && p.lo.ends_with('Z'));
@@ -142,7 +171,7 @@ mod tests {
 
     #[test]
     fn silent_and_loud_columns() {
-        let p = overview_paths(&[e(0, 0, 0), e(255, 255, 255)]);
+        let p = overview_paths(&[e(0, 0, 0), e(255, 255, 255)], false);
         // A silent column keeps a 0.6 sliver; a full one reaches the amplitude limit.
         assert!(p.lo.contains("0 49.4"));
         assert!(p.lo.contains("399 1.0") || p.lo.contains("399 "));
@@ -150,8 +179,8 @@ mod tests {
 
     #[test]
     fn fewer_entries_than_columns_and_empty() {
-        assert!(!overview_paths(&[e(10, 10, 10)]).lo.is_empty());
-        assert_eq!(overview_paths(&[]), OverviewPaths::default());
+        assert!(!overview_paths(&[e(10, 10, 10)], false).lo.is_empty());
+        assert_eq!(overview_paths(&[], false), OverviewPaths::default());
     }
 
     #[test]
@@ -162,7 +191,7 @@ mod tests {
         let loud = a[500..600].iter().map(|e| e.bass as u32).sum::<u32>();
         let quiet = a[0..100].iter().map(|e| e.bass as u32).sum::<u32>();
         assert!(loud > quiet * 2, "the drop is louder than the intro");
-        assert!(!overview_paths(&a).lo.is_empty());
+        assert!(!overview_paths(&a, false).lo.is_empty());
     }
 
     #[test]
@@ -268,6 +297,22 @@ pub fn spectral_overview(
             half,
         ),
         ..OverviewPaths::default()
+    }
+}
+
+#[cfg(test)]
+mod half_tests {
+    use super::*;
+
+    #[test]
+    fn half_bars_sit_on_the_floor_and_mirrored_ones_straddle_the_middle() {
+        let h = half_path(&[1.0, 0.5], 49.0);
+        assert!(h.starts_with("M0 2.0L1 51.0"), "{h}");
+        assert!(h.ends_with("L1 100L0 100Z"), "{h}");
+        let m = mirrored_path(&[1.0], 49.0);
+        assert!(m.starts_with("M0 1.0"), "{m}");
+        assert_eq!(band_path(&[0.3], 40.0, true), half_path(&[0.3], 40.0));
+        assert_eq!(band_path(&[0.3], 40.0, false), mirrored_path(&[0.3], 40.0));
     }
 }
 

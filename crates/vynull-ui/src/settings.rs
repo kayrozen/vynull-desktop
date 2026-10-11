@@ -158,7 +158,7 @@ fn WebSection() -> Element {
     let c = colors().effective(&daemon_wave());
     let cur = [c.lo.clone(), c.mi.clone(), c.hi.clone()];
     let band_names = ["KICK (LOW)", "BODY (MID)", "AIR (HIGH)"];
-    let paths = waveform::overview_paths(&waveform::demo_entries(400));
+    let paths = waveform::overview_paths(&waveform::demo_entries(400), false);
     let mode = if c.mode.is_empty() {
         "3 BAND".to_string()
     } else {

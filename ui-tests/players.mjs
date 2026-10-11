@@ -7,7 +7,7 @@ const browser = await launch();
 const page = await newPage(browser, [APP, FAKE]);
 
 await page.goto(APP + '/');
-await page.waitForSelector('.conn');
+await page.waitForSelector('.conn input');
 ok('first visit asks for the daemon', await page.evaluate(() => /HOST AND PORT/.test(document.body.innerText)));
 await page.$eval('.conn input', (e) => { e.value = ''; });
 await page.type('.conn input', FAKE.replace('http://', ''));
@@ -80,6 +80,24 @@ ok('opening a link lands on that screen', !!(await until(() => page.evaluate(() 
 ok('the connection chip changes the daemon', await page.evaluate(() => { const c = [...document.querySelectorAll('.top button.chip')][0]; c.click(); return true; }));
 ok('and shows the connection screen', !!(await until(() => page.evaluate(() => !!document.querySelector('.conn')))));
 
+// ---- 3band: the daemon's CDJ colors and its overview type
+const FAKEURL = process.env.FAKE;
+const setDev = async (patch) => { const cur = (await (await fetch(FAKEURL + '/api/settings')).json()).full; cur.dev_setting = { ...cur.dev_setting, ...patch }; await fetch(FAKEURL + '/api/settings', { method: 'POST', body: JSON.stringify({ full: cur }) }); };
+await page.$eval('.conn input', (e) => { e.value = ''; });
+await page.type('.conn input', FAKE.replace('http://', ''));
+await page.click('.conn button[type=submit]');
+await page.waitForSelector('.top');
+await openTab(page, 'PLAYERS');
+await page.waitForSelector('.pcs .ov svg');
+await setDev({ waveform_color: '3band', overview_type: 'half' });
+const band = () => page.evaluate(() => { const p = document.querySelector('.pcs .ov svg path.wl'); return p ? { fill: getComputedStyle(p).fill, blend: getComputedStyle(p).mixBlendMode, d: p.getAttribute('d'), mid: getComputedStyle(document.querySelector('.pcs .ov svg path.wm')).fill } : null; });
+ok('3band: the daemon colors (blue, amber) replace the preset colors', !!(await until(async () => { const b = await band(); return b && b.fill === 'rgb(26, 102, 217)' && b.mid === 'rgb(217, 145, 26)'; }, 15000)), JSON.stringify(await band()));
+ok('3band: the bands add together', (await band())?.blend === 'plus-lighter');
+ok('3band + half overview: bars stand on the floor', /L\d+ 100Z$|L0 100Z$/.test((await band())?.d || ''), (await band())?.d?.slice(-30));
+await setDev({ overview_type: 'full' });
+ok('3band + full overview: bars are mirrored about the middle', !!(await until(async () => { const d = (await band())?.d || ''; return d && !/L0 100Z$/.test(d); }, 15000)), (await band())?.d?.slice(-30));
+
+await setDev({ waveform_color: 'blue', overview_type: 'half' }); // the fake daemon is shared with the other scripts
 console.log('console errors:', page.errors.slice(0, 5));
 ok('no console errors', page.errors.length === 0);
 await browser.close();

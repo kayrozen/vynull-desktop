@@ -12,7 +12,7 @@ use crate::library_data::use_library;
 use crate::live::{use_feed, Feed, Link};
 use crate::nav;
 use crate::players::Players;
-use crate::prefs::{CueColors, Look, Saved, WaveColors, CONNECTION, VOCAL_KEY};
+use crate::prefs::{CueColors, Locks, Look, Saved, WaveColors, CONNECTION, VOCAL_KEY};
 use vynull_core::phrase::Vocal;
 
 const THEME: &str = include_str!("theme.css");
@@ -121,6 +121,8 @@ pub struct LookCtx {
     pub daemon_wave: Signal<String>,
     /// The daemon's `overview_type` (`half` or `full`): where waveform bars are anchored.
     pub daemon_overview: Signal<String>,
+    /// Tracks locked against grid edits and re-analysis in this client.
+    pub locks: Signal<Locks>,
 }
 
 #[component]
@@ -163,6 +165,7 @@ pub fn App() -> Element {
     let cue_colors = use_signal(|| CueColors::load(platform.store.as_ref()));
     let daemon_wave = use_signal(String::new);
     let daemon_overview = use_signal(String::new);
+    let locks = use_signal(|| Locks::load(platform.store.as_ref()));
     use_context_provider(|| LookCtx {
         look,
         colors,
@@ -170,6 +173,7 @@ pub fn App() -> Element {
         cue_colors,
         daemon_wave,
         daemon_overview,
+        locks,
     });
     rsx! {
         document::Style { {crate::fonts::css()} }

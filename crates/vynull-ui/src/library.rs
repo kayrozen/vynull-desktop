@@ -1071,8 +1071,10 @@ fn Row(props: RowProps) -> Element {
         colors,
         daemon_wave,
         daemon_overview,
+        locks,
         ..
     } = use_context::<LookCtx>();
+    let locked = locks().has(t.id);
     let overview = if daemon_overview() == "half" {
         "half"
     } else {
@@ -1113,6 +1115,7 @@ fn Row(props: RowProps) -> Element {
                 div { class: "ttl",
                     "{t.title}"
                     if t.file_missing { span { class: "fl rd", "MISSING" } }
+                    if locked { span { class: "fl am", title: "Grid and analysis locked in this client", "LOCKED" } }
                 }
                 div { class: "sub",
                     span { "{t.artist}" }

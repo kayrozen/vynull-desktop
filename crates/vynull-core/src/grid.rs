@@ -5,7 +5,7 @@
 
 use vynull_api::{BeatInfo, CueInfo, WaveEntry3Band};
 
-use crate::waveform::{mirrored_path, spectral_groups, Spectral};
+use crate::waveform::{band_path, spectral_groups, Spectral};
 use vynull_api::WaveEntrySpectral;
 
 /// Width of the zoom view in its own coordinate system. The view shows 16 bars.
@@ -96,7 +96,7 @@ pub fn zoom_spectral(
 }
 
 /// The whole track drawn once at the zoom scale. The view then only slides it.
-pub fn zoom_paths(entries: &[WaveEntry3Band], pxps: f64) -> Zoom {
+pub fn zoom_paths(entries: &[WaveEntry3Band], pxps: f64, half: bool) -> Zoom {
     if entries.is_empty() || pxps <= 0.0 {
         return Zoom::default();
     }
@@ -117,9 +117,9 @@ pub fn zoom_paths(entries: &[WaveEntry3Band], pxps: f64) -> Zoom {
             .collect()
     };
     Zoom {
-        lo: mirrored_path(&column(|e| e.bass), 49.0),
-        mi: mirrored_path(&column(|e| e.mid), 38.0),
-        hi: mirrored_path(&column(|e| e.high), 26.0),
+        lo: band_path(&column(|e| e.bass), 49.0, half),
+        mi: band_path(&column(|e| e.mid), 38.0, half),
+        hi: band_path(&column(|e| e.high), 26.0, half),
         total_cols: cols as f64,
         ..Zoom::default()
     }
@@ -305,10 +305,10 @@ mod tests {
             };
             1500
         ]; // 10 s
-        let z = zoom_paths(&entries, 18.75);
+        let z = zoom_paths(&entries, 18.75, false);
         assert_eq!(z.total_cols, 188.0); // 10 s * 18.75 px/s, rounded up
         assert!(z.lo.starts_with("M0 ") && z.lo.ends_with('Z'));
-        assert_eq!(zoom_paths(&[], 18.75), Zoom::default());
+        assert_eq!(zoom_paths(&[], 18.75, false), Zoom::default());
     }
 
     #[test]

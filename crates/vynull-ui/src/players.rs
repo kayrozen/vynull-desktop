@@ -184,7 +184,7 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
                         .ok()?;
                     waveform::spectral_overview(&w.entries, style, half)
                 }
-                None => waveform::overview_paths(&c.color_preview(id).await.ok()?.entries),
+                None => waveform::overview_paths(&c.color_preview(id).await.ok()?.entries, half),
             };
             let cues = c.track_cues(id).await.unwrap_or_default();
             Some(Overview {

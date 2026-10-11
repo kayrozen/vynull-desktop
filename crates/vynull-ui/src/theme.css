@@ -8,9 +8,9 @@ button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 a{color:inherit;text-decoration:none}
 .app{min-height:100vh;background:var(--bg);color:var(--text);font-family:Roboto,system-ui,sans-serif;font-size:15px;line-height:1.25;display:flex;flex-direction:column}
-.wl{fill:var(--wk,#B07CFF)}
-.wm{fill:var(--wm,#3FD6C0)}
-.wh{fill:var(--wh,#F4F1E8)}
+.wl{fill:var(--wk,#B07CFF);mix-blend-mode:var(--wblend,normal)}
+.wm{fill:var(--wm,#3FD6C0);mix-blend-mode:var(--wblend,normal)}
+.wh{fill:var(--wh,#F4F1E8);mix-blend-mode:var(--wblend,normal)}
 .mono{font-family:Cousine,monospace}
 .mut{color:var(--mut)}
 .sp{flex:1}

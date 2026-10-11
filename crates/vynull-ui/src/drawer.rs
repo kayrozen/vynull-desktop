@@ -197,6 +197,7 @@ pub struct DrawerProps {
 pub fn Drawer(props: DrawerProps) -> Element {
     let client = use_context::<ClientCtx>().0;
     let cue_colors = use_context::<LookCtx>().cue_colors;
+    let locks = use_context::<LookCtx>().locks;
     let platform = use_context::<Platform>();
     let audio = platform.audio.clone();
     let track = props.track.clone();
@@ -307,7 +308,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                     Some(Wave {
                         entries: Shared(Rc::new(w.entries)),
                         spectral: Shared(Rc::new(Vec::new())),
-                        overview: waveform::overview_paths(&ov.entries),
+                        overview: waveform::overview_paths(&ov.entries, half),
                     })
                 }
             }
@@ -530,6 +531,12 @@ pub fn Drawer(props: DrawerProps) -> Element {
     let c = client.clone();
     let grid_edit = use_callback(move |what: GridEdit| {
         if busy() {
+            return;
+        }
+        if locks.peek().has(id) {
+            props
+                .on_flash
+                .call("THE GRID IS LOCKED. UNLOCK IT TO EDIT OR ANALYZE AGAIN.".into());
             return;
         }
         busy.set(true);
@@ -757,7 +764,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
         w.map(|w| {
             Shared(Rc::new(match spectral_style {
                 Some(style) => grid::zoom_spectral(&w.spectral.0, pxps, style, half),
-                None => grid::zoom_paths(&w.entries.0, pxps),
+                None => grid::zoom_paths(&w.entries.0, pxps, half),
             }))
         })
     }));
@@ -820,6 +827,22 @@ pub fn Drawer(props: DrawerProps) -> Element {
     let phase = grid_now
         .as_ref()
         .map_or(0, |g| g.summary.beat_phase_shift.rem_euclid(4));
+    let locked = locks().has(id);
+    let toggle_lock = {
+        let store = platform.store.clone();
+        move |_| {
+            let mut l = locks.peek().clone();
+            let now = l.toggle(id);
+            let _ = store.set_json(crate::prefs::Locks::KEY, &l);
+            let mut locks = locks;
+            locks.set(l);
+            props.on_flash.call(if now {
+                "GRID AND ANALYSIS LOCKED".into()
+            } else {
+                "GRID UNLOCKED".into()
+            });
+        }
+    };
     let draft_val = draft_bpm();
     let draft_num = draft_val
         .trim()
@@ -1038,9 +1061,9 @@ pub fn Drawer(props: DrawerProps) -> Element {
                         oninput: move |e| draft_bpm.set(e.value()),
                     }
                     button { class: "btn ib", title: "Halve the BPM", "aria-label": "Halve the BPM",
-                        onclick: move |_| grid_edit.call(GridEdit::Bpm(cur_bpm / 2.0)), "/2" }
+                        disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Bpm(cur_bpm / 2.0)), "/2" }
                     button { class: "btn ib", title: "Double the BPM", "aria-label": "Double the BPM",
-                        onclick: move |_| grid_edit.call(GridEdit::Bpm(cur_bpm * 2.0)), "x2" }
+                        disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Bpm(cur_bpm * 2.0)), "x2" }
                     button { class: "btn", title: "Tap to the beat to set the BPM. The count resets after 2 seconds.",
                         onclick: move |_| {
                             let r = taps.write().tap(time::now_ms());
@@ -1049,7 +1072,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                         "TAP "
                         span { class: "mono mut", if taps.read().count() > 0 { "({taps.read().count()})" } }
                     }
-                    button { class: "btn on", disabled: draft_num.is_none() || busy(),
+                    button { class: "btn on", disabled: draft_num.is_none() || busy() || locked,
                         onclick: move |_| if let Some(b) = draft_num { grid_edit.call(GridEdit::Bpm(b)) },
                         "SAVE BPM" }
                     span { class: "mono mut", style: "font-size:12px", "{det_text}" }
@@ -1061,6 +1084,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                                 key: "{n}",
                                 class: if n == phase { "on" } else { "" },
                                 title: "Place the first bar line on this beat",
+                                disabled: locked,
                                 onclick: move |_| grid_edit.call(GridEdit::Phase(n)),
                                 if n == 0 { "0" } else { "+{n}" }
                             }
@@ -1068,21 +1092,29 @@ pub fn Drawer(props: DrawerProps) -> Element {
                     }
                     div { class: "bj",
                         button { class: "btn ib", title: "Clear the BPM and phase override", "aria-label": "Clear the BPM and phase override",
-                            onclick: move |_| grid_edit.call(GridEdit::Clear), "↶" }
+                            disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Clear), "↶" }
                     }
                 }
                 div { class: "wt",
                     span { class: "sh2", "GRID" }
+                    button {
+                        class: if locked { "btn sm on" } else { "btn sm" },
+                        title: if locked { "Locked: this client will not edit the grid or analyze this track again. Click to unlock." } else { "Lock the beat grid and the analysis against edits and re-analysis from this client" },
+                        "aria-pressed": "{locked}",
+                        "aria-label": if locked { "Unlock the beat grid and analysis" } else { "Lock the beat grid and analysis" },
+                        onclick: toggle_lock,
+                        if locked { "🔒 LOCKED" } else { "🔓 LOCK" }
+                    }
                     span { class: "mono mut", style: "font-size:12px;min-width:92px", "SHIFT {shift_ms():+} MS" }
                     div { class: "bj",
                         button { class: "btn ib", title: "Shift the grid 10 ms earlier", "aria-label": "Shift the grid 10 ms earlier",
-                            onclick: move |_| grid_edit.call(GridEdit::Shift(-10)), "«" }
+                            disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Shift(-10)), "«" }
                         button { class: "btn ib", title: "Shift the grid 10 ms later", "aria-label": "Shift the grid 10 ms later",
-                            onclick: move |_| grid_edit.call(GridEdit::Shift(10)), "»" }
+                            disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Shift(10)), "»" }
                         button { class: "btn ib", title: "Set the downbeat at the playhead", "aria-label": "Set the downbeat at the playhead",
-                            onclick: move |_| grid_edit.call(GridEdit::Downbeat((*cursor.peek() * 1000.0).round())), "⚑" }
+                            disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Downbeat((*cursor.peek() * 1000.0).round())), "⚑" }
                         button { class: "btn ib", title: "Analyze the track again", "aria-label": "Analyze the track again",
-                            onclick: move |_| grid_edit.call(GridEdit::Reanalyze), "⟳" }
+                            disabled: locked, onclick: move |_| grid_edit.call(GridEdit::Reanalyze), "⟳" }
                     }
                 }
             }

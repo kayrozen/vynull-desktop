@@ -25,7 +25,7 @@ export const until = async (fn, ms = 6000) => {
 /** Open the app, type the daemon's address on the connection screen, and wait for the shell. */
 export async function connect(page, app, api) {
   await page.goto(app + '/');
-  await page.waitForSelector('.conn');
+  await page.waitForSelector('.conn input');
   await page.$eval('.conn input', (e) => { e.value = ''; });
   await page.type('.conn input', api.replace('http://', ''));
   await page.click('.conn button[type=submit]');

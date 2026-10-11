@@ -35,7 +35,7 @@ ok('the daemon has analyzed the fixtures', !!(await until(async () => (await get
 const tag = await (await fetch(API + '/api/tags', { method: 'POST', body: JSON.stringify({ name: 'ci tag' }) })).json();
 
 await page.goto(APP + '/');
-await page.waitForSelector('.conn');
+await page.waitForSelector('.conn input');
 await page.$eval('.conn input', (e) => { e.value = ''; });
 await page.type('.conn input', API.replace('http://', ''));
 await page.click('.conn button[type=submit]');
@@ -303,6 +303,25 @@ ok('exiting the loop lets playback continue past it', !!(await until(async () =>
 await page.keyboard.press(' ');
 await btn('.drw .dh .btn', 'CLOSE');
 ok('CLOSE hides the drawer', await until(() => page.evaluate(() => !document.querySelector('.drw'))));
+
+// ---- lock: no edit, clear or re-analysis from this client while locked
+const lockBtn = () => page.evaluate(() => { const b = [...document.querySelectorAll('.drw .wt .btn')].find((x) => /LOCK/.test(x.textContent)); return b ? { text: b.textContent.trim(), pressed: b.getAttribute('aria-pressed') } : null; });
+const bpmNow = async () => (await get(`/api/analysis/${wav.id}`)).bpm;
+ok('lock: open the drawer again', await rowFor('fixture-120bpm'));
+await page.waitForSelector('.drw .zw .zin svg', { timeout: 15000 });
+await sleep(500);
+const bpm0 = await bpmNow();
+await btn('.drw .wt .btn', 'Lock the');
+ok('the LOCK button locks the track', !!(await until(async () => (await lockBtn())?.pressed === 'true')), JSON.stringify(await lockBtn()));
+ok('the lock is remembered in this browser', await page.evaluate((id) => JSON.parse(localStorage.getItem('vynull.locked')).includes(id), wav.id));
+ok('the edit buttons are disabled while locked', await page.evaluate(() => ['Halve the BPM', 'Double the BPM', 'Shift the grid 10 ms later', 'Set the downbeat at the playhead', 'Analyze the track again', 'Clear the BPM and phase override'].every((l) => document.querySelector(`.drw button[aria-label="${l}"]`).disabled) && document.querySelector('.drw .seg button').disabled));
+await page.evaluate(() => document.querySelector('.drw button[aria-label="Double the BPM"]').click());
+await sleep(800);
+ok('and clicking one changes nothing on the daemon', (await bpmNow()) === bpm0, `${bpm0} -> ${await bpmNow()}`);
+ok('the list marks the track', await page.evaluate(() => [...document.querySelectorAll('.lib .rw.on .fl')].some((e) => e.textContent === 'LOCKED')));
+await btn('.drw .wt .btn', 'Unlock');
+ok('unlocking enables editing again', !!(await until(() => page.evaluate(() => !document.querySelector('.drw button[aria-label="Double the BPM"]').disabled))));
+ok('and drops the mark', await page.evaluate(() => ![...document.querySelectorAll('.lib .rw .fl')].some((e) => e.textContent === 'LOCKED')));
 
 // ---- the CDJ's own RGB format (PWV5 weights per column), the default in AUTO when the daemon says rgb
 await page.evaluate(() => localStorage.setItem('vynull.wave', JSON.stringify({ mode: 'RGB', lo: '#B07CFF', mi: '#3FD6C0', hi: '#F4F1E8' })));

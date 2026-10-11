@@ -54,15 +54,27 @@ impl WaveColors {
     pub fn css_vars(&self, day: bool) -> String {
         let d = Self::default();
         if day && self.lo == d.lo && self.mi == d.mi && self.hi == d.hi {
-            return "--wk:#7A3FD6;--wm:#0E9F8E;--wh:#4A4638".to_string();
+            return "--wk:#7A3FD6;--wm:#0E9F8E;--wh:#4A4638;--wblend:normal".to_string();
         }
-        format!("--wk:{};--wm:{};--wh:{}", self.lo, self.mi, self.hi)
+        // The CDJ three-band look adds the bands together (white where all are loud); on the
+        // light theme that would wash out, so it is drawn plainly there.
+        let cdj = Self::preset("3 BAND");
+        let blend = if !day && self.lo == cdj.lo && self.mi == cdj.mi && self.hi == cdj.hi {
+            "plus-lighter"
+        } else {
+            "normal"
+        };
+        format!(
+            "--wk:{};--wm:{};--wh:{};--wblend:{blend}",
+            self.lo, self.mi, self.hi
+        )
     }
 }
 
 /// Presets for the waveform color modes, `(mode, [low, mid, high])`.
 pub const PRESETS: [(&str, [&str; 3]); 6] = [
-    ("3 BAND", ["#B07CFF", "#3FD6C0", "#F4F1E8"]),
+    // The CDJ-3000 three-band colors (bass blue, mid amber, treble white), dimmed for additive blending.
+    ("3 BAND", ["#1A66D9", "#D9911A", "#52565A"]),
     ("RGB", ["#FF4D4D", "#4DFF88", "#4D8CFF"]),
     ("BLUE", ["#2F6BFF", "#5C9DFF", "#D6E8FF"]),
     ("WARM", ["#FF6B3C", "#FFC15A", "#FFF1D0"]),
@@ -178,6 +190,34 @@ impl CueColors {
 
 pub const VOCAL_KEY: &str = "vocal";
 
+/// Tracks whose beat grid and analysis are locked in this client.
+///
+/// The daemon has no lock of its own, so this only stops *this client* from
+/// editing the grid, clearing it or analysing the track again.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Locks(pub std::collections::BTreeSet<i64>);
+
+impl Locks {
+    pub const KEY: &'static str = "locked";
+
+    pub fn load(store: &dyn Store) -> Self {
+        store.get_json(Self::KEY).ok().flatten().unwrap_or_default()
+    }
+
+    pub fn has(&self, id: i64) -> bool {
+        self.0.contains(&id)
+    }
+
+    /// Lock the track, or unlock it when it is locked. Returns whether it is locked now.
+    pub fn toggle(&mut self, id: i64) -> bool {
+        if !self.0.remove(&id) {
+            self.0.insert(id);
+            return true;
+        }
+        false
+    }
+}
+
 /// Theme and row density, kept in this browser (or this machine) only.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Look {
@@ -210,5 +250,53 @@ impl Look {
         } else {
             64.0
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_follows_the_daemon_waveform_color() {
+        let auto = WaveColors::default();
+        assert_eq!(auto.mode, AUTO);
+        assert!(auto.spectral("rgb").is_some());
+        assert!(auto.spectral("blue").is_some());
+        assert!(
+            auto.spectral("3band").is_none(),
+            "3band keeps the band drawing"
+        );
+        let c = auto.effective("3band");
+        assert_eq!(
+            (c.lo.as_str(), c.mi.as_str(), c.hi.as_str()),
+            ("#1A66D9", "#D9911A", "#52565A")
+        );
+        assert!(c.css_vars(false).contains("--wblend:plus-lighter"));
+        assert!(
+            c.css_vars(true).contains("--wblend:normal"),
+            "no additive blending on the light theme"
+        );
+    }
+
+    #[test]
+    fn locks_toggle_per_track() {
+        let mut l = Locks::default();
+        assert!(l.toggle(5));
+        assert!(l.has(5) && !l.has(6));
+        assert!(!l.toggle(5));
+        assert!(!l.has(5));
+    }
+
+    #[test]
+    fn chosen_colors_are_drawn_plainly() {
+        let own = WaveColors {
+            mode: "3 BAND".into(),
+            lo: "#112233".into(),
+            mi: "#445566".into(),
+            hi: "#778899".into(),
+        };
+        assert!(own.spectral("rgb").is_none());
+        assert!(own.css_vars(false).contains("--wblend:normal"));
     }
 }
