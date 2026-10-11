@@ -44,6 +44,8 @@ def make_tracks(n=1200):
             "label": f"Sample Label {'ABC'[i % 3]}", "remixer": f"Remixer {i % 4}", "year": 2000 + i % 25,
             "rating": i % 6, "tags": tags, "art_id": (9000 + i) if i % 3 == 0 else 0, "art_checked": True, "color_id": (i % 9) if i % 4 == 0 else 0,
         }
+        if i == 7:
+            t["genre"] = "Progressive House / Melodic Techno / Afro House / Organic House / Downtempo"
         if i % 400 == 3:
             t["file_missing"] = True
         if t["color_id"] == 0:

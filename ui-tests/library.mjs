@@ -191,6 +191,11 @@ ok('green: same key, neighbours and the relative key are drawn green, not the pl
 ok('green is really painted for at least one chip', !!kc && Object.values(kc).includes('rgb(63, 214, 192)'));
 ok('yellow, orange and a plain key keep their colors', !!kc && kc['11A'] === 'rgb(232, 224, 90)' && kc['4A'] === 'rgb(255, 154, 60)');
 
+// ---- a long genre stays inside its column
+const longGenre = await page.evaluate(() => { const r = [...document.querySelectorAll('.lib .rw')].find((x) => /Progressive/.test(x.querySelector('.c-g').textContent)); if (!r) return null; const g = r.querySelector('.c-g'), b = g.getBoundingClientRect(), n = r.querySelector('.c-b').getBoundingClientRect(); const cs = getComputedStyle(g); return { gw: Math.round(b.width), overflow: cs.overflow, ellipsis: cs.textOverflow, clipped: g.scrollWidth > g.clientWidth, title: g.title.length > 40, gright: Math.round(b.right), nleft: Math.round(n.left) }; });
+ok('a very long genre is clipped with an ellipsis inside its column', !!longGenre && longGenre.overflow === 'hidden' && longGenre.ellipsis === 'ellipsis' && longGenre.clipped && longGenre.gright <= longGenre.nleft, JSON.stringify(longGenre));
+ok('and its full text is in the tooltip', !!longGenre && longGenre.title);
+
 // ---- artwork and row waveforms
 await side('COLLECTION');
 await until(() => page.evaluate(() => document.querySelectorAll('.lib .rw .c-a img').length > 0));

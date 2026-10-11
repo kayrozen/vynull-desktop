@@ -1293,7 +1293,7 @@ fn Row(props: RowProps) -> Element {
             }
             span { class: "c-cm", title: "{t.comment}", "{t.comment}" }
             div { class: "c-w", img { src: "{wave}", alt: "", loading: "lazy" } }
-            span { class: "c-g", "{t.genre}" }
+            span { class: "c-g", title: "{t.genre}", "{t.genre}" }
             span { class: "c-b mono", "{vynull_core::search::bpm_label(t.bpm)}" }
             span { class: "c-k", span { class: "{props.key_class}", "{t.key}" } }
             span { class: "c-m mono", "{mmss(t.duration)}" }
