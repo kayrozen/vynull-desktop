@@ -32,7 +32,8 @@ const info = await page.evaluate(() => ({
 ok('four decks', info.decks === 4 && info.names.join() === 'P1,P2,P3,P4', info.names.join());
 ok('deck states show', ['PLAYING', 'CUED', 'MASTER', 'ON AIR', 'EXT METADATA', 'EMPTY'].every((s) => info.states.includes(s)));
 ok('an empty deck offers to load a track', await page.evaluate(() => /NO TRACK LOADED/.test(document.body.innerText)));
-ok('overview waveforms draw (cues and bands)', info.paths >= 4, `${info.paths} paths`);
+ok('overview waveforms draw in the CDJ RGB format (colored bars and cue marks)', info.paths >= 4, `${info.paths} paths`);
+ok('the bars take their color from the band weights, not a fixed palette', await page.evaluate(() => new Set([...document.querySelectorAll('.ov svg path')].map((p) => p.getAttribute('fill')).filter((f) => /^rgb\(/.test(f))).size > 6));
 ok('compatible keys are tinted, others are not', info.keys.join() === 'key ok:9A,key ok:8A,key:4A', info.keys.join());
 ok('mixer shows on-air state only, no faders', info.mixer.some((m) => /CH 1 ON AIR/.test(m)) && info.mixer.some((m) => /CH 2 OFF/.test(m)) && !/%/.test(info.mixer.join()), info.mixer.join(' | '));
 ok('subtitle counts players and mixers', /3 players and 1 mixer/.test(info.subtitle), info.subtitle);

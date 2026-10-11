@@ -31,7 +31,8 @@ pub struct WaveColors {
 impl Default for WaveColors {
     fn default() -> Self {
         Self {
-            mode: String::new(),
+            // As the daemon's own web UI: follow the CDJ's waveform color setting until told otherwise.
+            mode: AUTO.into(),
             lo: "#B07CFF".into(),
             mi: "#3FD6C0".into(),
             hi: "#F4F1E8".into(),
@@ -100,6 +101,39 @@ impl WaveColors {
         WaveColors {
             mode: AUTO.into(),
             ..Self::preset(name)
+        }
+    }
+}
+
+impl WaveColors {
+    /// Spectral style to draw with, if any: Pioneer RGB or blue (from the CDJ's
+    /// PWV5 data), chosen by an explicit RGB or BLUE mode or, in AUTO, by the
+    /// daemon's `waveform_color`. `None` means the three bands in the saved colors.
+    pub fn spectral(&self, daemon: &str) -> Option<vynull_core::waveform::Spectral> {
+        use vynull_core::waveform::Spectral;
+        match self.mode.as_str() {
+            "RGB" => Some(Spectral::Rgb),
+            "BLUE" => Some(Spectral::Blue),
+            AUTO => match daemon {
+                "3band" => None,
+                "blue" => Some(Spectral::Blue),
+                _ => Some(Spectral::Rgb),
+            },
+            _ => None,
+        }
+    }
+
+    /// The `color` the daemon's PNG renderer wants (`rgb`, `blue`, `3band`) for the library rows.
+    pub fn png_color(&self, daemon: &str) -> &'static str {
+        match self.mode.as_str() {
+            "RGB" => "rgb",
+            "BLUE" => "blue",
+            AUTO => match daemon {
+                "blue" => "blue",
+                "3band" => "3band",
+                _ => "rgb",
+            },
+            _ => "3band",
         }
     }
 }

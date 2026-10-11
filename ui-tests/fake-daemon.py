@@ -8,6 +8,7 @@ records them at `GET /__log`. It talks to nothing else: no real daemon, no files
 
 Usage: fake-daemon.py PORT
 """
+import base64
 import json
 import sys
 import threading
@@ -41,7 +42,7 @@ def make_tracks(n=1200):
             "duration": 120 + (i * 13) % 300, "file_path": f"/music/sample-{i:04d}.flac", "file_type": "flac",
             "comment": f"note {i % 5}: " + ("Female vocal at bar 33" if i % 10 == 0 else "plain"),
             "label": f"Sample Label {'ABC'[i % 3]}", "remixer": f"Remixer {i % 4}", "year": 2000 + i % 25,
-            "rating": i % 6, "tags": tags, "art_id": 0, "color_id": (i % 9) if i % 4 == 0 else 0,
+            "rating": i % 6, "tags": tags, "art_id": (9000 + i) if i % 3 == 0 else 0, "art_checked": True, "color_id": (i % 9) if i % 4 == 0 else 0,
         }
         if i % 400 == 3:
             t["file_missing"] = True
@@ -346,10 +347,29 @@ class H(BaseHTTPRequestHandler):
                 return self.send(404, b"not found", "text/plain")
             tracks = smart_tracks(pl["rules"]) if pl.get("is_smart") and pl.get("rules") else [BY_ID[i] for i in pl["track_ids"] if i in BY_ID]
             return self.send(200, tracks)
+        if p.startswith("/api/analysis/waveform/") and q.get("type", [""])[0] == "detail" and q.get("style", ["spectral"])[0] == "spectral":
+            # PWV5-like: 150 entries a second, band weights 0-7 and a height 0-31.
+            tid = int(p.rsplit("/", 1)[1])
+            entries = [{"r": (i // 50 + tid) % 8, "g": (i // 70 + 2) % 8, "b": (i // 90) % 8, "h": 6 + (i * 5 + tid) % 25} for i in range(150 * 120)]
+            return self.send(200, {"track_id": tid, "type": "detail", "style": "spectral", "sample_rate": 150, "entries": entries})
         if p.startswith("/api/analysis/waveform/") and q.get("type", [""])[0] == "color_preview":
             tid = int(p.rsplit("/", 1)[1])
             entries = [{"bass": int(120 + 100 * ((i * 7 + tid) % 10) / 10), "mid": 80, "treble": 50} for i in range(1500)]
             return self.send(200, {"track_id": tid, "type": "color_preview", "entries": entries})
+        if p.startswith("/api/artwork/") and p.count("/") == 3:
+            # Cover art is looked up by TRACK id; only tracks with art_id > 0 have some.
+            tid = int(p.rsplit("/", 1)[1])
+            t = BY_ID.get(tid)
+            if not t or not t.get("art_id"):
+                return self.send(404, b"no artwork", "text/plain")
+            png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png)))
+            self.end_headers()
+            self.wfile.write(png)
+            return
         if p.startswith("/api/tracks/") and p.endswith("/phrases"):
             # Five phrases; the second and fourth are sung (scores either side of the thresholds).
             return self.send(200, [

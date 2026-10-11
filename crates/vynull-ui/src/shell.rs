@@ -119,6 +119,8 @@ pub struct LookCtx {
     pub cue_colors: Signal<CueColors>,
     /// The daemon's `waveform_color` (`blue`, `rgb`, `3band`), for the AUTO color mode.
     pub daemon_wave: Signal<String>,
+    /// The daemon's `overview_type` (`half` or `full`): where waveform bars are anchored.
+    pub daemon_overview: Signal<String>,
 }
 
 #[component]
@@ -160,12 +162,14 @@ pub fn App() -> Element {
     });
     let cue_colors = use_signal(|| CueColors::load(platform.store.as_ref()));
     let daemon_wave = use_signal(String::new);
+    let daemon_overview = use_signal(String::new);
     use_context_provider(|| LookCtx {
         look,
         colors,
         vocal,
         cue_colors,
         daemon_wave,
+        daemon_overview,
     });
     rsx! {
         document::Style { {crate::fonts::css()} }
@@ -208,11 +212,16 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
     use_context_provider(|| ClientCtx(client.clone()));
     let lib = use_library(client.clone());
     // The AUTO waveform color follows the daemon's setting, which the players can change.
-    let LookCtx { daemon_wave, .. } = use_context::<LookCtx>();
+    let LookCtx {
+        daemon_wave,
+        daemon_overview,
+        ..
+    } = use_context::<LookCtx>();
     let c = client.clone();
     use_future(move || {
         let c = c.clone();
         let mut daemon_wave = daemon_wave;
+        let mut daemon_overview = daemon_overview;
         async move {
             loop {
                 if let Ok(s) = c.settings().await {
@@ -224,6 +233,15 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
                         .to_string();
                     if w != *daemon_wave.peek() {
                         daemon_wave.set(w);
+                    }
+                    let o = s
+                        .full
+                        .pointer("/dev_setting/overview_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if o != *daemon_overview.peek() {
+                        daemon_overview.set(o);
                     }
                 }
                 time::sleep(std::time::Duration::from_secs(5)).await;

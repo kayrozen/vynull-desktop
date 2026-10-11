@@ -11,7 +11,7 @@ use std::time::Duration;
 use dioxus::prelude::*;
 use vynull_api::{
     BeatInfo, BeatSummary, BeatgridAdjust, BeatsPatch, CueInfo, CueKind, PhraseInfo, TagInfo,
-    TrackInfo, TrackMetadataPatch, WaveEntry3Band,
+    TrackInfo, TrackMetadataPatch, WaveEntry3Band, WaveEntrySpectral,
 };
 use vynull_core::grid::{self, Grid, Zoom};
 use vynull_core::palette;
@@ -54,7 +54,10 @@ const NATIVE: [&str; 4] = ["mp3", "wav", "flac", "ogg"];
 /// Waveform and overview of a track. Fetched once per track.
 #[derive(Clone, PartialEq)]
 struct Wave {
+    /// Three-band detail data, for the band styles.
     entries: Shared<Vec<WaveEntry3Band>>,
+    /// Spectral (Pioneer PWV5) detail data, for the RGB and blue styles.
+    spectral: Shared<Vec<WaveEntrySpectral>>,
     overview: OverviewPaths,
 }
 
@@ -272,18 +275,42 @@ pub fn Drawer(props: DrawerProps) -> Element {
 
     // ---- data: the waveform once per track, the grid again after each edit
     let c = client.clone();
-    let wave = use_resource(use_reactive!(|(id,)| {
+    let LookCtx {
+        colors,
+        daemon_wave,
+        daemon_overview,
+        ..
+    } = use_context::<LookCtx>();
+    let spectral_style = colors().spectral(&daemon_wave());
+    let half = daemon_overview() == "half";
+    let wave = use_resource(use_reactive!(|(id, spectral_style, half)| {
         let c = c.clone();
         async move {
-            let w = c
-                .detail_waveform::<WaveEntry3Band>(id, "3band")
-                .await
-                .ok()?;
-            let ov = c.color_preview(id).await.ok()?;
-            Some(Wave {
-                entries: Shared(Rc::new(w.entries)),
-                overview: waveform::overview_paths(&ov.entries),
-            })
+            match spectral_style {
+                Some(style) => {
+                    let w = c
+                        .detail_waveform::<WaveEntrySpectral>(id, "spectral")
+                        .await
+                        .ok()?;
+                    Some(Wave {
+                        overview: waveform::spectral_overview(&w.entries, style, half),
+                        spectral: Shared(Rc::new(w.entries)),
+                        entries: Shared(Rc::new(Vec::new())),
+                    })
+                }
+                None => {
+                    let w = c
+                        .detail_waveform::<WaveEntry3Band>(id, "3band")
+                        .await
+                        .ok()?;
+                    let ov = c.color_preview(id).await.ok()?;
+                    Some(Wave {
+                        entries: Shared(Rc::new(w.entries)),
+                        spectral: Shared(Rc::new(Vec::new())),
+                        overview: waveform::overview_paths(&ov.entries),
+                    })
+                }
+            }
         }
     }));
     let c = client.clone();
@@ -717,7 +744,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
     let pxps = grid::px_per_sec_bars(bpm_eff, bars());
 
     // These two are heavy: recompute only when the data or the tempo changes.
-    let zoom = use_memo(use_reactive!(|(id,)| {
+    let zoom = use_memo(use_reactive!(|(id, spectral_style, half)| {
         let _ = id;
         let w = wave.read().clone().flatten();
         let b = gdata
@@ -726,11 +753,12 @@ pub fn Drawer(props: DrawerProps) -> Element {
             .flatten()
             .map_or(track_bpm_fallback(), |g| g.summary.bpm);
         let n = bars();
+        let pxps = grid::px_per_sec_bars(b, n);
         w.map(|w| {
-            Shared(Rc::new(grid::zoom_paths(
-                &w.entries.0,
-                grid::px_per_sec_bars(b, n),
-            )))
+            Shared(Rc::new(match spectral_style {
+                Some(style) => grid::zoom_spectral(&w.spectral.0, pxps, style, half),
+                None => grid::zoom_paths(&w.entries.0, pxps),
+            }))
         })
     }));
     let lines = use_memo(use_reactive!(|(id,)| {
@@ -805,7 +833,8 @@ pub fn Drawer(props: DrawerProps) -> Element {
     } else {
         "height:50%".to_string()
     };
-    let art_url = client.url(&format!("/api/artwork/{}", track.art_id));
+    let art_url = client.url(&format!("/api/artwork/{}", track.id));
+    let mut art_failed = use_signal(|| false);
     let side_cut = if dh() > 0.0 {
         format!("{}px", dh())
     } else {
@@ -832,8 +861,8 @@ pub fn Drawer(props: DrawerProps) -> Element {
         section { class: "drw", style: "{height_style}", "aria-label": "Track details",
             div { class: "dh",
                 div { class: "art", style: "{art_style(id)}",
-                    if track.art_id > 0 {
-                        img { src: "{art_url}", alt: "" }
+                    if !art_failed() && (track.art_id > 0 || !track.art_checked) {
+                        img { src: "{art_url}", alt: "", onerror: move |_| art_failed.set(true) }
                     }
                 }
                 div { class: "tt",
@@ -1578,9 +1607,14 @@ fn ZoomLayers(
                 path { d: "{g.0.beats}", fill: "none", class: "gbeat", stroke_width: "1", vector_effect: "non-scaling-stroke" }
                 path { d: "{g.0.bars}", fill: "none", class: "gbar", stroke_width: "1.5", vector_effect: "non-scaling-stroke" }
             }
-            path { d: "{z.lo}", class: "wl" }
-            path { d: "{z.mi}", class: "wm" }
-            path { d: "{z.hi}", class: "wh" }
+            if z.colored.is_empty() {
+                path { d: "{z.lo}", class: "wl" }
+                path { d: "{z.mi}", class: "wm" }
+                path { d: "{z.hi}", class: "wh" }
+            }
+            for (fill , d) in z.colored.iter() {
+                path { key: "{fill}", d: "{d}", fill: "{fill}" }
+            }
         }
         // The strip is as wide as the canvas, so one pixel column is 1000 / pxps ms.
         PhraseStrip { phrases, span_ms: total / pxps.max(0.001) * 1000.0, class: "inzoom" }
@@ -1657,9 +1691,14 @@ fn Overview(
             },
             svg { view_box: "0 0 400 100", preserve_aspect_ratio: "none",
                 if let Some(p) = &paths {
-                    path { d: "{p.lo}", class: "wl" }
-                    path { d: "{p.mi}", class: "wm" }
-                    path { d: "{p.hi}", class: "wh" }
+                    if p.colored.is_empty() {
+                        path { d: "{p.lo}", class: "wl" }
+                        path { d: "{p.mi}", class: "wm" }
+                        path { d: "{p.hi}", class: "wh" }
+                    }
+                    for (fill , d) in p.colored.iter() {
+                        path { key: "{fill}", d: "{d}", fill: "{fill}" }
+                    }
                 }
                 path { d: "{waveform::cue_marks(&cue_pos)}", fill: "#FF6B6B" }
             }

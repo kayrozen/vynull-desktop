@@ -514,6 +514,9 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
     };
 
     let cols_now = cols();
+    // Twice the on-screen size for sharp thumbnails, in steps so that dragging a column edge does not refetch every pixel.
+    let wave_w = (cols_now.width(Col::Overview).unwrap_or(130) * 2).div_ceil(80) * 80;
+    let wave_h = (row_h as u32).saturating_sub(8).max(14) * 2;
     let source_now = source();
     let queue_view = source_now == Source::Queue;
     let col_style = cols_now.css_vars(if queue_view { 200 } else { 104 });
@@ -950,6 +953,8 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                                 load_open: opened,
                                                 in_queue: queue_now.contains(id),
                                                 queue_view,
+                                                wave_w: wave_w,
+                                                wave_h: wave_h,
                                                 played: queue_view && queue_now.is_played(id),
                                                 on_q: move |a: QAction| {
                                                     let mut q = queue.write();
@@ -1036,6 +1041,9 @@ struct RowProps {
     in_queue: bool,
     queue_view: bool,
     played: bool,
+    /// Pixel size to ask the daemon for the row thumbnail at.
+    wave_w: u32,
+    wave_h: u32,
     on_q: EventHandler<QAction>,
     on_pick: EventHandler<()>,
     on_ld: EventHandler<()>,
@@ -1051,14 +1059,32 @@ fn Row(props: RowProps) -> Element {
         "background:none;border:1px dashed #6B7482".to_string(),
         |(_, hex)| format!("background:{hex}"),
     );
-    let art = if t.art_id > 0 {
-        Some(client.url(&format!("/api/artwork/{}", t.art_id)))
+    // `/api/artwork/{id}` takes the track id. Art is extracted on first request, so
+    // a track not yet checked may still have some; one known to have none is skipped.
+    let mut art_failed = use_signal(|| false);
+    let art = (!art_failed() && (t.art_id > 0 || !t.art_checked))
+        .then(|| client.url(&format!("/api/artwork/{}", t.id)));
+    // The daemon draws the row thumbnail from the CDJ's detail data in the
+    // color mode and overview type it uses itself, as its own web UI asks for it.
+    // `a=1` makes the URL change once the track is analysed, so a placeholder is not kept.
+    let LookCtx {
+        colors,
+        daemon_wave,
+        daemon_overview,
+        ..
+    } = use_context::<LookCtx>();
+    let overview = if daemon_overview() == "half" {
+        "half"
     } else {
-        None
+        "full"
     };
     let wave = client.url(&format!(
-        "/api/analysis/waveform-png/{}?type=color_preview&w=260&h=68",
-        t.id
+        "/api/analysis/waveform-png/{}?type=detail&color={}&overview={overview}&w={}&h={}{}",
+        t.id,
+        colors().png_color(&daemon_wave()),
+        props.wave_w,
+        props.wave_h,
+        if t.bpm > 0.0 { "&a=1" } else { "" }
     ));
     let border = if props.selected {
         "#FFC15A"
@@ -1081,7 +1107,7 @@ fn Row(props: RowProps) -> Element {
             onclick: move |_| props.on_pick.call(()),
             span { class: "c-cl", i { class: "cdot", style: "{cdot}" } }
             div { class: "c-a", style: "{art_style(t.id)}",
-                if let Some(url) = art { img { src: "{url}", alt: "", loading: "lazy" } }
+                if let Some(url) = art { img { src: "{url}", alt: "", loading: "lazy", onerror: move |_| art_failed.set(true) } }
             }
             div { class: "c-t",
                 div { class: "ttl",

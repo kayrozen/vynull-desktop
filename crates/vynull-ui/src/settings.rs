@@ -115,6 +115,7 @@ fn WebSection() -> Element {
         vocal,
         cue_colors,
         daemon_wave,
+        ..
     } = use_context::<LookCtx>();
     let mut band = use_signal(|| 0usize); // 0 low, 1 mid, 2 high
 

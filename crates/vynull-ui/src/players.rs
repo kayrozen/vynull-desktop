@@ -8,7 +8,8 @@ use vynull_core::{key, playhead, waveform};
 
 use crate::live::Feed;
 use crate::phrases::PhraseStrip;
-use crate::shell::{ClientCtx, Tab};
+use crate::shell::{ClientCtx, LookCtx, Tab};
+use vynull_api::WaveEntrySpectral;
 
 #[component]
 pub fn Players(feed: Feed, base: String, goto: EventHandler<Tab>) -> Element {
@@ -161,16 +162,33 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
 
     let (id, external) = (p.track_id, p.external);
     let c = client.clone();
-    let overview = use_resource(use_reactive!(|(id, external)| {
+    let LookCtx {
+        colors,
+        daemon_wave,
+        daemon_overview,
+        ..
+    } = use_context::<LookCtx>();
+    let spectral_style = colors().spectral(&daemon_wave());
+    let half = daemon_overview() == "half";
+    let overview = use_resource(use_reactive!(|(id, external, spectral_style, half)| {
         let c = c.clone();
         async move {
             if id <= 0 || external {
                 return None;
             }
-            let wave = c.color_preview(id).await.ok()?;
+            let paths = match spectral_style {
+                Some(style) => {
+                    let w = c
+                        .detail_waveform::<WaveEntrySpectral>(id, "spectral")
+                        .await
+                        .ok()?;
+                    waveform::spectral_overview(&w.entries, style, half)
+                }
+                None => waveform::overview_paths(&c.color_preview(id).await.ok()?.entries),
+            };
             let cues = c.track_cues(id).await.unwrap_or_default();
             Some(Overview {
-                paths: waveform::overview_paths(&wave.entries),
+                paths,
                 cue_ms: cues.iter().map(|q| q.time_ms).collect(),
             })
         }
@@ -264,9 +282,14 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
                             let cues: Vec<f64> = o.cue_ms.iter().map(|&t| t as f64 / p.duration_ms.max(1) as f64).collect();
                             rsx! {
                                 svg { view_box: "0 0 400 100", preserve_aspect_ratio: "none",
-                                    path { d: "{o.paths.lo}", class: "wl" }
-                                    path { d: "{o.paths.mi}", class: "wm" }
-                                    path { d: "{o.paths.hi}", class: "wh" }
+                                    if o.paths.colored.is_empty() {
+                                        path { d: "{o.paths.lo}", class: "wl" }
+                                        path { d: "{o.paths.mi}", class: "wm" }
+                                        path { d: "{o.paths.hi}", class: "wh" }
+                                    }
+                                    for (fill , d) in o.paths.colored.iter() {
+                                        path { key: "{fill}", d: "{d}", fill: "{fill}" }
+                                    }
                                     path { d: "{waveform::cue_marks(&cues)}", fill: "#FF6B6B" }
                                 }
                             }

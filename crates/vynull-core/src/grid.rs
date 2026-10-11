@@ -5,7 +5,8 @@
 
 use vynull_api::{BeatInfo, CueInfo, WaveEntry3Band};
 
-use crate::waveform::mirrored_path;
+use crate::waveform::{mirrored_path, spectral_groups, Spectral};
+use vynull_api::WaveEntrySpectral;
 
 /// Width of the zoom view in its own coordinate system. The view shows 16 bars.
 pub const VIEW_COLS: f64 = 600.0;
@@ -66,11 +67,32 @@ pub fn window_secs_for(pxps: f64) -> f64 {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Zoom {
+    /// Per-column colored bars (`(fill, path)`) for the spectral styles; empty for the three-band paths.
+    pub colored: Vec<(String, String)>,
     pub lo: String,
     pub mi: String,
     pub hi: String,
     /// Width of the whole track in view columns.
     pub total_cols: f64,
+}
+
+/// The whole track drawn once at the zoom scale from spectral data (Pioneer RGB or blue).
+pub fn zoom_spectral(
+    entries: &[WaveEntrySpectral],
+    pxps: f64,
+    style: Spectral,
+    half: bool,
+) -> Zoom {
+    if entries.is_empty() || pxps <= 0.0 {
+        return Zoom::default();
+    }
+    let step = ENTRIES_PER_SEC / pxps;
+    let cols = (entries.len() as f64 / step).ceil().max(1.0) as usize;
+    Zoom {
+        colored: spectral_groups(entries, step, cols, style, half),
+        total_cols: cols as f64,
+        ..Zoom::default()
+    }
 }
 
 /// The whole track drawn once at the zoom scale. The view then only slides it.
@@ -99,6 +121,7 @@ pub fn zoom_paths(entries: &[WaveEntry3Band], pxps: f64) -> Zoom {
         mi: mirrored_path(&column(|e| e.mid), 38.0),
         hi: mirrored_path(&column(|e| e.high), 26.0),
         total_cols: cols as f64,
+        ..Zoom::default()
     }
 }
 

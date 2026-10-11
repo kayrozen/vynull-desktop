@@ -119,6 +119,17 @@ await openTab(page, 'LIBRARY');
 await sleep(300);
 await side('WARM-UP');
 
+// ---- artwork and row waveforms
+await side('COLLECTION');
+await until(() => page.evaluate(() => document.querySelectorAll('.lib .rw .c-a img').length > 0));
+await sleep(500);
+const artRows = await page.evaluate(() => [...document.querySelectorAll('.lib .rw')].map((r) => ({ n: Number(r.querySelector('.ttl').textContent.match(/(\d{4})/)?.[1]), img: r.querySelector('.c-a img')?.getAttribute('src') || null, ok: r.querySelector('.c-a img')?.naturalWidth > 0 })));
+ok('rows with cover art ask for the TRACK id, not the art id', artRows.some((r) => r.img) && artRows.filter((r) => r.img).every((r) => r.img.endsWith('/api/artwork/' + r.n) && !/artwork\/9\d{3}$/.test(r.img)), JSON.stringify(artRows.slice(0, 4)));
+ok('and the cover is the one the daemon sent for that track', !!(await until(() => page.evaluate(() => [...document.querySelectorAll('.lib .rw .c-a img')].filter((i) => i.getBoundingClientRect().top < innerHeight - 40).every((i) => i.complete && i.naturalWidth > 0)))));
+ok('rows the daemon says have no cover do not ask for one', artRows.filter((r) => r.n % 3 !== 0 && r.n > 0).every((r) => !r.img), JSON.stringify(artRows.filter((r) => r.n % 3 !== 0).slice(0, 3)));
+const waveSrc = await page.evaluate(() => document.querySelector('.lib .rw .c-w img').getAttribute('src'));
+ok('row waveforms use the daemon detail render in its color and overview type', /type=detail/.test(waveSrc) && /color=blue/.test(waveSrc) && /overview=half/.test(waveSrc) && !/color_preview/.test(waveSrc), waveSrc);
+
 // ---- columns
 const hdr0 = await page.evaluate(() => [...document.querySelectorAll('.lh .hc')].map((e) => e.textContent.trim()));
 await page.click('button[aria-label=Columns]');

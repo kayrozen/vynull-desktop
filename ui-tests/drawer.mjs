@@ -40,6 +40,10 @@ await page.$eval('.conn input', (e) => { e.value = ''; });
 await page.type('.conn input', API.replace('http://', ''));
 await page.click('.conn button[type=submit]');
 await page.waitForSelector('.top');
+// The existing checks below are about the three-band drawing; the RGB format has its own checks at the end.
+await page.evaluate(() => localStorage.setItem('vynull.wave', JSON.stringify({ mode: '3 BAND', lo: '#B07CFF', mi: '#3FD6C0', hi: '#F4F1E8' })));
+await page.reload();
+await page.waitForSelector('.top');
 await page.evaluate(() => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes('LIBRARY')).click());
 await page.waitForSelector('.lib .rw', { timeout: 30000 });
 
@@ -299,6 +303,23 @@ ok('exiting the loop lets playback continue past it', !!(await until(async () =>
 await page.keyboard.press(' ');
 await btn('.drw .dh .btn', 'CLOSE');
 ok('CLOSE hides the drawer', await until(() => page.evaluate(() => !document.querySelector('.drw'))));
+
+// ---- the CDJ's own RGB format (PWV5 weights per column), the default in AUTO when the daemon says rgb
+await page.evaluate(() => localStorage.setItem('vynull.wave', JSON.stringify({ mode: 'RGB', lo: '#B07CFF', mi: '#3FD6C0', hi: '#F4F1E8' })));
+await page.reload();
+await page.waitForSelector('.top');
+await page.evaluate(() => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes('LIBRARY')).click());
+await page.waitForSelector('.lib .rw', { timeout: 30000 });
+ok('RGB: open the drawer again', await rowFor('fixture-120bpm'));
+await page.waitForSelector('.drw .zw .zin svg', { timeout: 15000 });
+await sleep(800);
+const rgb = await page.evaluate(() => {
+  const fills = (sel) => [...document.querySelectorAll(sel)].map((p) => p.getAttribute('fill')).filter((f) => /^rgb\(/.test(f));
+  return { zoom: fills('.drw .zin > svg path'), ov: fills('.drw .ovw svg path'), classed: document.querySelectorAll('.drw .zin > svg path.wl').length };
+});
+ok('RGB: the zoom is drawn in per-column colors, not the three band shapes', rgb.zoom.length >= 1 && rgb.classed === 0, JSON.stringify(rgb.zoom.slice(0, 3)));
+ok('RGB: so is the overview', rgb.ov.length >= 1, JSON.stringify(rgb.ov.slice(0, 3)));
+ok('RGB: every color is on the 3-bit scale of the format (multiples of 38)', [...rgb.zoom, ...rgb.ov].every((f) => f.match(/\d+/g).every((n) => Number(n) % 38 === 0 || Number(n) === 255)), JSON.stringify([...new Set([...rgb.zoom, ...rgb.ov])].slice(0, 6)));
 
 console.log('console errors:', errs.slice(0, 5));
 await browser.close();
