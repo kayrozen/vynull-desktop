@@ -142,6 +142,58 @@ await page.reload();
 await page.waitForSelector('.lib .rw', { timeout: 30000 });
 ok('columns are remembered', !(await page.evaluate(() => [...document.querySelectorAll('.lh .hc')].map((e) => e.textContent.trim()).includes('GENRE'))));
 
+// ---- column layout and sorting
+const geo = () => page.evaluate(() => {
+  const h = {}, r = {};
+  for (const e of document.querySelectorAll('.lh .hc')) { const b = e.getBoundingClientRect(); h[e.className.split(' ')[0]] = [Math.round(b.left), Math.round(b.width)]; }
+  for (const e of document.querySelector('.rw').children) { const b = e.getBoundingClientRect(); r[e.className.split(' ')[0]] = [Math.round(b.left), Math.round(b.width)]; }
+  return { h, r };
+});
+const g0 = await geo();
+ok('header labels sit over their cells', Object.keys(g0.h).every((k) => g0.r[k] && g0.h[k][0] === g0.r[k][0] && g0.h[k][1] === g0.r[k][1]), JSON.stringify(g0.h));
+const rzBox = async (cls) => page.evaluate((c) => { const r = document.querySelector(`.lh .${c} .rz`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, cls);
+const rb = await rzBox('c-cm');
+await page.mouse.move(rb.x, rb.y); await page.mouse.down(); await page.mouse.move(rb.x + 60, rb.y, { steps: 4 }); await page.mouse.up(); await sleep(300);
+const g1 = await geo();
+ok('widening a column keeps the others at their width', g1.h['c-cm'][1] > g0.h['c-cm'][1] + 40 && g1.h['c-b'][1] === g0.h['c-b'][1] && g1.h['c-w'][1] === g0.h['c-w'][1], JSON.stringify([g0.h['c-cm'], g1.h['c-cm']]));
+ok('and the labels still match their cells', Object.keys(g1.h).every((k) => g1.r[k] && g1.h[k][0] === g1.r[k][0] && g1.h[k][1] === g1.r[k][1]));
+ok('the resize handle is a thin bar, not a dot', await page.evaluate(() => { const b = document.querySelector('.lh .c-r .rz').getBoundingClientRect(); return b.width >= 10 && b.height >= 20; }));
+await page.evaluate(() => document.querySelector('.lh .c-cm .rz').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+await sleep(200);
+
+const cells = (cls) => page.evaluate((c) => [...document.querySelectorAll(`.lib .rw .${c}`)].map((e) => e.textContent.trim()), cls);
+const sorted = (a, cmp) => a.every((v, i) => i === 0 || cmp(a[i - 1], v) <= 0);
+const bpmOf = (a) => a.map(Number);
+const head = (cls) => page.evaluate((c) => document.querySelector(`.lh .${c}`).textContent.trim(), cls);
+const clickHead = (cls, shift = false) => page.evaluate((c, sh) => {
+  document.querySelector(`.lh .${c}`).dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: sh }));
+}, cls, shift);
+await clickHead('c-b'); await sleep(300);
+ok('clicking BPM sorts ascending', sorted(bpmOf(await cells('c-b')), (a, b) => a - b) && /▲/.test(await head('c-b')), (await cells('c-b')).slice(0, 4).join(','));
+await clickHead('c-b'); await sleep(300);
+ok('clicking again sorts descending', sorted(bpmOf(await cells('c-b')), (a, b) => b - a) && /▼/.test(await head('c-b')), (await cells('c-b')).slice(0, 4).join(','));
+await clickHead('c-b'); await sleep(300);
+ok('a third click clears the sort', !/[▲▼]/.test(await head('c-b')));
+await clickHead('c-k'); await sleep(200);
+await clickHead('c-b', true); await sleep(300);
+const pairs = await page.evaluate(() => [...document.querySelectorAll('.lib .rw')].map((r) => [r.querySelector('.c-k').textContent.trim(), Number(r.querySelector('.c-b').textContent)]));
+const num = (k) => parseInt(k, 10) * 2 + (k.endsWith('B') ? 1 : 0);
+ok('KEY first and BPM second: keys in order, BPM breaks ties', pairs.every((p, i) => i === 0 || num(pairs[i - 1][0]) < num(p[0]) || (num(pairs[i - 1][0]) === num(p[0]) && pairs[i - 1][1] <= p[1])), JSON.stringify(pairs.slice(0, 5)));
+ok('the secondary key is marked 2', /2/.test(await head('c-b')) && /▲/.test(await head('c-b')));
+await clickHead('c-b'); await sleep(300);
+ok('clicking the secondary promotes it', sorted(bpmOf(await cells('c-b')), (a, b) => a - b));
+await page.reload();
+await page.waitForSelector('.lib .rw', { timeout: 30000 });
+ok('the sort is remembered', /▲/.test(await head('c-b')));
+await clickHead('c-b'); await clickHead('c-b'); await clickHead('c-k'); await clickHead('c-k'); await sleep(200);
+ok('sorting is cleared again', !(await page.evaluate(() => /[▲▼]/.test(document.querySelector('.lh').textContent))));
+
+await page.setViewport({ width: 1440, height: 400 });
+await sleep(300);
+const sc = await page.evaluate(() => { const s = document.querySelector('.lib .side'); s.scrollTop = 60; return { client: s.clientHeight, scroll: s.scrollHeight, top: s.scrollTop }; });
+ok('the left column scrolls when it is taller than the window', sc.scroll > sc.client && sc.top > 0, JSON.stringify(sc));
+await page.setViewport({ width: 1440, height: 1100 });
+
 // ---- load on a deck
 await page.evaluate(() => document.querySelector('.rw .c-ld .ldb:last-child').click());
 await sleep(300);

@@ -2,7 +2,7 @@
 //! that mixes well with the tempo master.
 
 /// Parse `"9A"`, `"12B"` into (number 1..=12, minor?). Letter A is minor.
-fn parse(key: &str) -> Option<(u8, bool)> {
+pub(crate) fn parse(key: &str) -> Option<(u8, bool)> {
     let key = key.trim();
     let (num, letter) = key.split_at(key.len().checked_sub(1)?);
     let n: u8 = num.parse().ok()?;

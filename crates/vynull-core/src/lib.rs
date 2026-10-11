@@ -15,5 +15,6 @@ pub mod route;
 pub mod search;
 pub mod settings;
 pub mod smart;
+pub mod sort;
 pub mod tap;
 pub mod waveform;

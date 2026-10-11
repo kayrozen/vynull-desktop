@@ -13,6 +13,7 @@ use vynull_core::palette;
 use vynull_core::queue::{total_label, Queue};
 use vynull_core::route::{Page, Route, Source};
 use vynull_core::search::{fold, Recent};
+use vynull_core::sort::{self, Sort};
 use vynull_platform::{time, StoreExt};
 
 use crate::drawer::{DeckBtn, Drawer};
@@ -139,6 +140,16 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                 .normalized()
         }
     });
+    let mut sort = use_signal({
+        let store = platform.store.clone();
+        move || {
+            store
+                .get_json::<Sort>("sort")
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+        }
+    });
     let mut recent = use_signal({
         let store = platform.store.clone();
         move || {
@@ -153,6 +164,10 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         let store = platform.store.clone();
         use_effect(move || {
             let _ = store.set_json("columns", &cols());
+        });
+        let store = platform.store.clone();
+        use_effect(move || {
+            let _ = store.set_json("sort", &sort());
         });
         let store = platform.store.clone();
         use_effect(move || {
@@ -376,7 +391,8 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
             .filter(|t| tag_sel().contains(&t.id))
             .map(|t| t.name.as_str())
             .collect();
-        base.into_iter()
+        let mut out: Vec<usize> = base
+            .into_iter()
             .filter(|&i| mask[i])
             .filter(|&i| {
                 let have = &st.tracks[i].tags;
@@ -387,7 +403,12 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                         wanted.iter().any(|w| have.iter().any(|h| h == w))
                     }
             })
-            .collect::<Vec<usize>>()
+            .collect();
+        // The queue keeps the order the user gave it.
+        if source() != Source::Queue {
+            sort.read().apply(&st.tracks, &mut out);
+        }
+        out
     });
 
     let sugs = use_memo(move || -> Vec<SugView> {
@@ -827,7 +848,18 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                     key: "{c.css()}",
                                     class: "{c.class()} hc",
                                     draggable: "true",
-                                    title: "Drag to reorder the column",
+                                    title: if sort::sortable(c) && !queue_view { "Click to sort, click again to reverse. Shift-click sets the second sort. Drag to reorder." } else { "Drag to reorder the column" },
+                                    onclick: move |e| {
+                                        if queue_view {
+                                            return;
+                                        }
+                                        if e.modifiers().shift() {
+                                            sort.write().click_secondary(c);
+                                        } else {
+                                            sort.write().click(c);
+                                        }
+                                        scroll_top.set(0.0);
+                                    },
                                     ondragstart: move |_| drag.set(Some(c)),
                                     ondragover: move |e| e.prevent_default(),
                                     ondrop: move |e| {
@@ -838,11 +870,20 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                         drag.set(None);
                                     },
                                     "{header_label(c, queue_view)}"
+                                    if !queue_view {
+                                        if let Some((rank, desc)) = sort.read().rank(c) {
+                                            span { class: "so", "aria-label": if desc { "sorted descending" } else { "sorted ascending" },
+                                                if desc { "▼" } else { "▲" }
+                                                if rank == 2 { sub { "2" } }
+                                            }
+                                        }
+                                    }
                                     if c.resizable() {
-                                        i {
+                                        span {
                                             class: "rz",
                                             title: "Drag to resize the column. Double click to reset.",
                                             draggable: "false",
+                                            onclick: move |e| e.stop_propagation(),
                                             onpointerdown: move |e| {
                                                 e.prevent_default();
                                                 e.stop_propagation();
