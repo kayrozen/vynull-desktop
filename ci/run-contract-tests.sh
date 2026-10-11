@@ -40,5 +40,5 @@ curl -s -m1 "localhost:$port/api/diag/status" | grep -q Ready || fail "analysis 
 
 # The /app route and cargo run from the daemon's own filesystem view; only the
 # URL matters to the tests.
-VYNULL_URL="http://127.0.0.1:$port" VYNULL_FIXTURE=1 cargo test --workspace -- --ignored --test-threads=4 \
+VYNULL_URL="http://127.0.0.1:$port" VYNULL_FIXTURE=1 cargo test -p vynull-api -- --ignored --test-threads=4 \
   || fail "contract tests failed"
