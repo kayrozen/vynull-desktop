@@ -72,6 +72,7 @@ struct GridData {
 const COLOR_HISTORY: &str = "color_history";
 const VOLUME: &str = "volume";
 const METRONOME: &str = "metronome";
+const ZOOM_KEY: &str = "zoom_bars";
 
 fn cue_color(c: &CueInfo) -> String {
     if let Some((_, hex)) = palette::color(c.color_id) {
@@ -221,6 +222,27 @@ pub fn Drawer(props: DrawerProps) -> Element {
                 .flatten()
                 .unwrap_or(80)
                 .min(100)
+        }
+    });
+    let mut bars = use_signal({
+        let store = platform.store.clone();
+        move || {
+            store
+                .get_json::<u32>(ZOOM_KEY)
+                .ok()
+                .flatten()
+                .filter(|b| grid::ZOOM_BARS.contains(b))
+                .unwrap_or(grid::DEFAULT_BARS)
+        }
+    });
+    let zoom_step = use_callback({
+        let store = platform.store.clone();
+        move |out: bool| {
+            let next = grid::step_bars(*bars.peek(), out);
+            if next != *bars.peek() {
+                bars.set(next);
+                let _ = store.set_json(ZOOM_KEY, &next);
+            }
         }
     });
     let mut prev_volume = use_signal(|| 80u32);
@@ -555,6 +577,39 @@ pub fn Drawer(props: DrawerProps) -> Element {
         });
     });
 
+    // Shift-click on the zoom view: a hot cue in the first free slot, in its default color.
+    let add_cue_at = use_callback(move |secs: f64| {
+        let existing = cues_now(&cues_res);
+        match grid::free_hot_cue(&existing) {
+            Some(n) => put_cue.call(CueInfo {
+                number: n,
+                kind: CueKind::Cue,
+                time_ms: (secs * 1000.0).round() as i64,
+                loop_ms: -1,
+                color_id: cue_colors().for_cue(n),
+                label: String::new(),
+            }),
+            None => props.on_flash.call("ALL 8 HOT CUES ARE USED".into()),
+        }
+    });
+    // Dragging a flag: the same cue number at the new time; a loop keeps its length.
+    let move_cue = use_callback(move |(number, secs): (i64, f64)| {
+        let Some(old) = cues_now(&cues_res).into_iter().find(|c| c.number == number) else {
+            return;
+        };
+        let time_ms = (secs * 1000.0).round() as i64;
+        let loop_ms = if old.kind == CueKind::Loop && old.loop_ms > old.time_ms {
+            time_ms + (old.loop_ms - old.time_ms)
+        } else {
+            old.loop_ms
+        };
+        put_cue.call(CueInfo {
+            time_ms,
+            loop_ms,
+            ..old
+        });
+    });
+
     let c = client.clone();
     let set_tags = use_callback(move |ids: Vec<i64>| {
         let c = c.clone();
@@ -659,7 +714,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
     let cues = cues_res.read().clone().unwrap_or_default();
     let tags_now = track_tags.read().clone().unwrap_or_default();
     let bpm_eff = grid_now.as_ref().map_or(track.bpm, |g| g.bpm);
-    let pxps = grid::px_per_sec(bpm_eff);
+    let pxps = grid::px_per_sec_bars(bpm_eff, bars());
 
     // These two are heavy: recompute only when the data or the tempo changes.
     let zoom = use_memo(use_reactive!(|(id,)| {
@@ -670,15 +725,22 @@ pub fn Drawer(props: DrawerProps) -> Element {
             .clone()
             .flatten()
             .map_or(track_bpm_fallback(), |g| g.summary.bpm);
-        w.map(|w| Shared(Rc::new(grid::zoom_paths(&w.entries.0, grid::px_per_sec(b)))))
+        let n = bars();
+        w.map(|w| {
+            Shared(Rc::new(grid::zoom_paths(
+                &w.entries.0,
+                grid::px_per_sec_bars(b, n),
+            )))
+        })
     }));
     let lines = use_memo(use_reactive!(|(id,)| {
         let _ = id;
         let b = gdata.read().clone().flatten();
+        let n = bars();
         b.map(|g| {
             Shared(Rc::new(grid::grid_lines(
                 &g.beats.0,
-                grid::px_per_sec(g.summary.bpm),
+                grid::px_per_sec_bars(g.summary.bpm, n),
             )))
         })
     }));
@@ -800,7 +862,9 @@ pub fn Drawer(props: DrawerProps) -> Element {
 
             div { class: "wv",
                 div { class: "wt",
-                    span { class: "sh2", "ZOOM  16 BARS" }
+                    span { class: "sh2", "ZOOM  {bars()} BARS" }
+                    button { class: "btn sm", title: "Zoom in (Ctrl-scroll up)", "aria-label": "Zoom in", disabled: bars() == grid::ZOOM_BARS[0], onclick: move |_| zoom_step.call(false), "+" }
+                    button { class: "btn sm", title: "Zoom out (Ctrl-scroll down)", "aria-label": "Zoom out", disabled: bars() == grid::ZOOM_BARS[grid::ZOOM_BARS.len() - 1], onclick: move |_| zoom_step.call(true), "−" }
                     span { class: "sp" }
                     div { class: "bj",
                         span { class: "sh2", style: "align-self:center", "BEAT JUMP" }
@@ -821,13 +885,13 @@ pub fn Drawer(props: DrawerProps) -> Element {
                         }
                     }
                 }
-                ZoomView { zoom: zoom(), lines: lines(), cues: cues.clone(), phrases: phrases_res.read().clone().unwrap_or_default(), cursor, pxps, duration, on_scrub: move |secs| seek.call(secs) }
+                ZoomView { zoom: zoom(), lines: lines(), cues: cues.clone(), phrases: phrases_res.read().clone().unwrap_or_default(), cursor, pxps, duration, on_scrub: move |secs| seek.call(secs), on_zoom: move |out| zoom_step.call(out), on_add_cue: move |secs| add_cue_at.call(secs), on_move_cue: move |(n, secs)| move_cue.call((n, secs)) }
                 Overview {
                     paths: wave_now.as_ref().map(|w| w.overview.clone()),
                     cues: cues.clone(),
                     cursor,
                     duration,
-                    window: grid::window_secs(bpm_eff),
+                    window: grid::window_secs_bars(bpm_eff, bars()),
                     on_seek: move |secs| seek.call(secs),
                 }
                 PhraseStrip { phrases: phrases_res.read().clone().unwrap_or_default(), span_ms: duration * 1000.0, class: "full" }
@@ -1365,9 +1429,14 @@ fn ZoomView(
     pxps: f64,
     duration: f64,
     on_scrub: EventHandler<f64>,
+    on_zoom: EventHandler<bool>,
+    on_add_cue: EventHandler<f64>,
+    on_move_cue: EventHandler<(i64, f64)>,
 ) -> Element {
     // The view's width in px, measured when a drag starts.
     let mut view_w = use_signal(|| 0.0_f64);
+    // (cue number, pointer x at the start, cue time at the start, cue time now) while moving a cue.
+    let mut cue_drag = use_signal(|| None::<(i64, f64, f64, f64)>);
     // (pointer x at the start, cursor at the start) while dragging.
     let mut drag = use_signal(|| None::<(f64, f64)>);
     let Some(z) = zoom else {
@@ -1376,14 +1445,47 @@ fn ZoomView(
     let total = z.0.total_cols.max(1.0);
     // The strip is as wide as the track; the view slides it so the cursor sits at the center line.
     let width_pct = total / grid::VIEW_COLS * 100.0;
+    // A cue being dragged is drawn where it would land.
+    let shown_cues: Vec<CueInfo> = cues
+        .iter()
+        .map(|c| match cue_drag() {
+            Some((n, _, _, now)) if n == c.number => CueInfo {
+                time_ms: (now * 1000.0).round() as i64,
+                ..c.clone()
+            },
+            _ => c.clone(),
+        })
+        .collect();
     let shift_pct = (cursor() * pxps - grid::VIEW_COLS / 2.0) / total * 100.0;
     rsx! {
         div {
             class: "zw",
             style: "cursor:grab",
-            title: "Drag to move through the track",
+            title: "Drag to move through the track. Shift-click adds a hot cue there. Ctrl-scroll zooms.",
+            onwheel: move |e| {
+                if e.modifiers().ctrl() {
+                    e.prevent_default();
+                    let dy = e.delta().strip_units().y;
+                    if dy != 0.0 {
+                        on_zoom.call(dy > 0.0);
+                    }
+                }
+            },
             onpointerdown: move |e| {
                 e.prevent_default();
+                if e.modifiers().shift() {
+                    let x = e.client_coordinates().x;
+                    let center = *cursor.peek();
+                    spawn(async move {
+                        if let Some((left, w)) = crate::dom::left_and_width(".drw .zw").await {
+                            if w > 0.0 {
+                                let secs = center + ((x - left) / w - 0.5) * grid::window_secs_for(pxps);
+                                on_add_cue.call(secs.clamp(0.0, duration.max(0.0)));
+                            }
+                        }
+                    });
+                    return;
+                }
                 drag.set(Some((e.client_coordinates().x, *cursor.peek())));
                 spawn(async move {
                     if let Some((_, w)) = crate::dom::left_and_width(".drw .zw").await {
@@ -1394,9 +1496,51 @@ fn ZoomView(
             // A click without movement ends before the full-screen layer below exists.
             onpointerup: move |_| drag.set(None),
             div { class: "zin", style: "width:{width_pct}%;transform:translateX({-shift_pct}%)",
-                ZoomLayers { zoom: z.clone(), lines: lines.clone(), cues, phrases, pxps, total }
+                ZoomLayers { zoom: z.clone(), lines: lines.clone(), phrases, pxps, total }
+                CueFlags {
+                    cues: shown_cues,
+                    pxps,
+                    total,
+                    on_grab: {
+                        let cues = cues.clone();
+                        move |(number, x): (i64, f64)| {
+                            let Some(c) = cues.iter().find(|c| c.number == number) else { return };
+                            cue_drag.set(Some((number, x, c.time_ms as f64 / 1000.0, c.time_ms as f64 / 1000.0)));
+                            spawn(async move {
+                                if let Some((_, w)) = crate::dom::left_and_width(".drw .zw").await {
+                                    view_w.set(w);
+                                }
+                            });
+                        }
+                    },
+                }
             }
             div { class: "ph" }
+        }
+        if let Some((number, x0, t0, _)) = cue_drag() {
+            div {
+                class: "rsz-shield",
+                style: "cursor:ew-resize",
+                onpointermove: move |e| {
+                    let width = view_w();
+                    if width > 0.0 {
+                        let dx = e.client_coordinates().x - x0;
+                        let secs = (t0 + dx / width * grid::window_secs_for(pxps)).clamp(0.0, duration.max(0.0));
+                        cue_drag.set(Some((number, x0, t0, secs)));
+                    }
+                },
+                onpointerup: move |_| {
+                    let cur: Option<(i64, f64, f64, f64)> = *cue_drag.peek();
+                    let now = cur.map(|d| d.3);
+                    cue_drag.set(None);
+                    if let Some(secs) = now {
+                        if (secs - t0).abs() > 0.004 {
+                            on_move_cue.call((number, secs));
+                        }
+                    }
+                },
+                onpointerleave: move |_| cue_drag.set(None),
+            }
         }
         if let Some((x0, start)) = drag() {
             div {
@@ -1423,7 +1567,6 @@ fn ZoomView(
 fn ZoomLayers(
     zoom: Shared<Zoom>,
     lines: Option<Shared<Grid>>,
-    cues: Vec<CueInfo>,
     phrases: Vec<PhraseInfo>,
     pxps: f64,
     total: f64,
@@ -1448,12 +1591,35 @@ fn ZoomLayers(
                 }
             }
         }
+    }
+}
+
+/// The cue flags over the zoom view. Apart from [`ZoomLayers`] so that dragging
+/// a flag redraws only the flags.
+#[component]
+fn CueFlags(
+    cues: Vec<CueInfo>,
+    pxps: f64,
+    total: f64,
+    on_grab: EventHandler<(i64, f64)>,
+) -> Element {
+    rsx! {
         for c in cues.iter() {
             {
                 let x = c.time_ms as f64 / 1000.0 * pxps / total * 100.0;
                 let color = cue_color(c);
+                let number = c.number;
                 rsx! {
                     div { key: "{c.number}", class: "fg", style: "left:{x:.3}%;background:{color}",
+                        i {
+                            class: "hit",
+                            title: "Drag to move this cue",
+                            onpointerdown: move |e| {
+                                e.prevent_default();
+                                e.stop_propagation();
+                                on_grab.call((number, e.client_coordinates().x));
+                            },
+                        }
                         span { style: "background:{color}", "{grid::cue_letter(c.number)}" }
                     }
                 }

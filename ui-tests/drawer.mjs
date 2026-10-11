@@ -227,6 +227,52 @@ await sleep(300);
 const after2 = toMs(await timecode());
 ok('dragging left moves later in the track', after2 > before2 + 2000, `${before2} -> ${after2} ms`);
 
+// shift-click on the zoom adds a hot cue; dragging its flag moves it
+const cueList = async () => (await get(`/api/tracks/${wav.id}/cues`));
+const atCursor = toMs(await timecode());
+const hotBefore = (await cueList()).filter((c) => c.number <= 8).map((c) => c.number);
+const hot = hotBefore.length;
+await page.keyboard.down('Shift');
+await page.mouse.click(zb.x + zb.w * 0.25, zb.y);
+await page.keyboard.up('Shift');
+const added = await until(async () => (await cueList()).find((c) => c.number <= 8 && !hotBefore.includes(c.number)));
+ok('shift-click on the zoom adds a hot cue ahead of the playhead', !!added && (await cueList()).filter((c) => c.number <= 8).length === hot + 1 && added.time_ms > atCursor + 1000 && added.time_ms < atCursor + 40000, JSON.stringify(added) + ' cursor ' + atCursor);
+await page.screenshot({ path: 'ui-cue.png' });
+await sleep(500);
+const flag = await page.evaluate(() => { const r = [...document.querySelectorAll('.drw .zin .fg .hit')].pop().getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 40 }; });
+await page.mouse.move(flag.x, flag.y);
+await page.mouse.down();
+await page.mouse.move(flag.x - zb.w * 0.1, flag.y, { steps: 5 });
+const live = await page.evaluate(() => parseFloat([...document.querySelectorAll('.drw .zin .fg')].pop().style.left));
+await page.mouse.up();
+const cueMoved = await until(async () => (await cueList()).find((c) => c.number === added.number && c.time_ms < added.time_ms - 500));
+ok('dragging a cue flag moves that cue', !!cueMoved && cueMoved.time_ms > added.time_ms - 20000 && cueMoved.number === added.number, `${added.time_ms} -> ${cueMoved?.time_ms}`);
+ok('and the flag followed the pointer before the drop', Number.isFinite(live));
+ok('the other cues did not change', (await cueList()).filter((c) => c.number !== added.number).every((c) => c.time_ms !== cueMoved.time_ms));
+
+// Ctrl-scroll zooms the waveform
+const zoomLabel = () => page.evaluate(() => document.querySelector('.drw .wt .sh2')?.textContent.replace(/\s+/g, ' ').trim());
+const stripW = () => page.evaluate(() => parseFloat(document.querySelector('.drw .zw .zin').style.width));
+await page.evaluate(() => { window.__dp = []; document.addEventListener('wheel', (e) => window.__dp.push([e.ctrlKey, e.defaultPrevented])); });
+ok('zoom starts at 16 bars', (await zoomLabel()) === 'ZOOM 16 BARS', await zoomLabel());
+const w16 = await stripW();
+await page.mouse.move(zb.x, zb.y);
+await page.keyboard.down('Control'); await page.mouse.wheel({ deltaY: -100 }); await page.keyboard.up('Control');
+ok('Ctrl-scroll up zooms in to 8 bars', !!(await until(async () => (await zoomLabel()) === 'ZOOM 8 BARS')), await zoomLabel());
+ok('the strip got twice as wide', !!(await until(async () => Math.abs((await stripW()) / w16 - 2) < 0.05)), `${w16} -> ${await stripW()}`);
+ok('the browser page zoom was prevented', await page.evaluate(() => window.__dp.length > 0 && window.__dp.every(([c, d]) => !c || d)), JSON.stringify(await page.evaluate(() => window.__dp)));
+ok('and the waveform was redrawn', await page.evaluate(() => document.querySelectorAll('.drw .zin > svg path').length === 6 || document.querySelectorAll('.drw .zin > svg path').length === 5));
+await page.mouse.wheel({ deltaY: -100 });
+ok('a scroll without Ctrl does not zoom', (await zoomLabel()) === 'ZOOM 8 BARS');
+await page.keyboard.down('Control'); await page.mouse.wheel({ deltaY: 100 }); await page.mouse.wheel({ deltaY: 100 }); await page.keyboard.up('Control');
+ok('Ctrl-scroll down zooms out (32 bars)', !!(await until(async () => (await zoomLabel()) === 'ZOOM 32 BARS')), await zoomLabel());
+ok('the zoom level is remembered', await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.zoom_bars')) === 32));
+for (let i = 0; i < 4; i++) await btn('.drw .wt .btn', 'Zoom in');
+ok('the zoom-in button stops at 4 bars', !!(await until(async () => (await zoomLabel()) === 'ZOOM 4 BARS')) && await page.evaluate(() => document.querySelector('.drw .wt button[aria-label="Zoom in"]').disabled));
+for (let i = 0; i < 2; i++) await btn('.drw .wt .btn', 'Zoom out');
+await sleep(300);
+ok('the zoom-out button steps back', (await zoomLabel()) === 'ZOOM 16 BARS', await zoomLabel());
+
 // clicking the overview seeks
 const ob = await page.evaluate(() => { const r = document.querySelector('.drw .ovw').getBoundingClientRect(); return { x: r.x, y: r.y + r.height / 2, w: r.width }; });
 await page.mouse.click(ob.x + ob.w * 0.5, ob.y);

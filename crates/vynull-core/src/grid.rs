@@ -12,19 +12,51 @@ pub const VIEW_COLS: f64 = 600.0;
 /// Detail waveform entries per second.
 pub const ENTRIES_PER_SEC: f64 = 150.0;
 
-/// Zoom scale: pixels (view columns) per second so that 16 bars span the view.
-pub fn px_per_sec(bpm: f64) -> f64 {
+/// Bars the zoom view can show, from closest to widest (Ctrl-scroll steps through them).
+pub const ZOOM_BARS: [u32; 5] = [4, 8, 16, 32, 64];
+/// The default: 16 bars.
+pub const DEFAULT_BARS: u32 = 16;
+
+/// The next zoom level: `out` shows more bars, otherwise fewer. Stops at the ends.
+/// An unknown `bars` counts as the default.
+pub fn step_bars(bars: u32, out: bool) -> u32 {
+    let i = ZOOM_BARS.iter().position(|b| *b == bars).unwrap_or(
+        ZOOM_BARS
+            .iter()
+            .position(|b| *b == DEFAULT_BARS)
+            .unwrap_or(2),
+    );
+    let j = if out {
+        (i + 1).min(ZOOM_BARS.len() - 1)
+    } else {
+        i.saturating_sub(1)
+    };
+    ZOOM_BARS[j]
+}
+
+/// Zoom scale: pixels (view columns) per second so that `bars` bars span the view.
+pub fn px_per_sec_bars(bpm: f64, bars: u32) -> f64 {
     let bpm = if bpm.is_finite() && bpm > 20.0 {
         bpm.min(400.0)
     } else {
         120.0
     };
-    VIEW_COLS * bpm / (16.0 * 4.0 * 60.0)
+    VIEW_COLS * bpm / (bars.max(1) as f64 * 4.0 * 60.0)
 }
 
-/// Seconds the zoom view spans at this tempo.
+/// Zoom scale for the default 16 bars.
+pub fn px_per_sec(bpm: f64) -> f64 {
+    px_per_sec_bars(bpm, DEFAULT_BARS)
+}
+
+/// Seconds the zoom view spans at this tempo and zoom level.
+pub fn window_secs_bars(bpm: f64, bars: u32) -> f64 {
+    VIEW_COLS / px_per_sec_bars(bpm, bars)
+}
+
+/// Seconds the zoom view spans at this tempo, at the default zoom.
 pub fn window_secs(bpm: f64) -> f64 {
-    VIEW_COLS / px_per_sec(bpm)
+    window_secs_bars(bpm, DEFAULT_BARS)
 }
 
 /// Seconds the zoom view spans at a given scale (pixels per second).
@@ -215,6 +247,16 @@ mod tests {
             loop_ms: -1,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn zoom_steps_stop_at_the_ends() {
+        assert_eq!(step_bars(16, true), 32);
+        assert_eq!(step_bars(16, false), 8);
+        assert_eq!(step_bars(64, true), 64);
+        assert_eq!(step_bars(4, false), 4);
+        assert_eq!(step_bars(7, true), 32, "an unknown level counts as 16");
+        assert!((window_secs_bars(120.0, 8) * 2.0 - window_secs_bars(120.0, 16)).abs() < 1e-9);
     }
 
     #[test]

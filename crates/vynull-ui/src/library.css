@@ -221,3 +221,5 @@
 .lib dl.ro dt{font-family:Cousine,monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);align-self:center}
 .lib dl.ro dd{margin:0;font-size:14px;overflow-wrap:anywhere}
 .lib dl.ro dd.dim{color:var(--faint)}
+.lib .fg .hit{position:absolute;top:0;bottom:0;left:-6px;width:14px;cursor:ew-resize;z-index:2}
+.lib .fg span{cursor:ew-resize;pointer-events:none}
