@@ -77,6 +77,8 @@ ENUMS = {
     "jog_mode": ["cdj", "vinyl"], "tempo_range": ["six", "ten", "sixteen", "wide"], "sync": ["off", "on"],
     "beat_jump_beat_value": ["half", "one", "two", "four", "eight", "sixteen", "thirty_two", "sixty_four"],
     "vinyl_speed_adjust": ["touch_release", "touch", "release"], "jog_display_mode": ["auto", "info", "simple", "artwork"],
+    "channel_fader_curve": ["steep_top", "linear", "steep_bottom"], "cross_fader_curve": ["constant", "slow_cut", "fast_cut"], "mic_low_cut": ["off", "on"],
+    "overview_type": ["half", "full"], "waveform_color": ["blue", "rgb", "3band"], "key_display": ["classic", "alphanumeric"], "wave_position": ["center", "left"],
 }
 MENU = {"items": [
     {"key": "artist", "label": "ARTIST", "id": 2, "item_type": 129, "visible": True, "locked": False},
@@ -348,6 +350,14 @@ class H(BaseHTTPRequestHandler):
             tid = int(p.rsplit("/", 1)[1])
             entries = [{"bass": int(120 + 100 * ((i * 7 + tid) % 10) / 10), "mid": 80, "treble": 50} for i in range(1500)]
             return self.send(200, {"track_id": tid, "type": "color_preview", "entries": entries})
+        if p.startswith("/api/tracks/") and p.endswith("/phrases"):
+            # Five phrases; the second and fourth are sung (scores either side of the thresholds).
+            return self.send(200, [
+                {"kind": 1, "name": "Intro", "start_ms": 0, "end_ms": 20000, "energy": 0.2, "has_vocal": False, "vocal_score": 0.02},
+                {"kind": 2, "name": "Up", "start_ms": 20000, "end_ms": 60000, "energy": 0.6, "has_vocal": True, "vocal_score": 0.2},
+                {"kind": 3, "name": "Down", "start_ms": 60000, "end_ms": 90000, "energy": 0.4, "has_vocal": False, "vocal_score": 0.1},
+                {"kind": 5, "name": "Chorus", "start_ms": 90000, "end_ms": 130000, "energy": 0.9, "has_vocal": True, "vocal_score": 0.13},
+                {"kind": 6, "name": "Outro", "start_ms": 130000, "end_ms": 150000, "energy": 0.1, "has_vocal": False, "vocal_score": 0.0}])
         if p.startswith("/api/tracks/") and p.endswith("/cues"):
             return self.send(200, [{"number": 1, "type": "cue", "time_ms": 8200, "loop_ms": -1, "color_id": 0, "label": ""}])
         self.send(404, b"fake daemon: no such route", "text/plain")

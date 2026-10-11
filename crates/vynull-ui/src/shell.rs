@@ -12,7 +12,8 @@ use crate::library_data::use_library;
 use crate::live::{use_feed, Feed, Link};
 use crate::nav;
 use crate::players::Players;
-use crate::prefs::{Look, Saved, WaveColors, CONNECTION};
+use crate::prefs::{CueColors, Look, Saved, WaveColors, CONNECTION, VOCAL_KEY};
+use vynull_core::phrase::Vocal;
 
 const THEME: &str = include_str!("theme.css");
 const LIBRARY_CSS: &str = include_str!("library.css");
@@ -112,6 +113,12 @@ pub struct ClientCtx(pub Client);
 pub struct LookCtx {
     pub look: Signal<Look>,
     pub colors: Signal<WaveColors>,
+    /// How strictly phrases are marked as sung.
+    pub vocal: Signal<Vocal>,
+    /// Default colors of new hot cues A to H.
+    pub cue_colors: Signal<CueColors>,
+    /// The daemon's `waveform_color` (`blue`, `rgb`, `3band`), for the AUTO color mode.
+    pub daemon_wave: Signal<String>,
 }
 
 #[component]
@@ -141,13 +148,31 @@ pub fn App() -> Element {
 
     let look = use_signal(|| Look::load(platform.store.as_ref()));
     let colors = use_signal(|| WaveColors::load(platform.store.as_ref()));
-    use_context_provider(|| LookCtx { look, colors });
+    let vocal = use_signal(|| {
+        Vocal::from_index(
+            platform
+                .store
+                .get_json::<u8>(VOCAL_KEY)
+                .ok()
+                .flatten()
+                .unwrap_or(Vocal::default().index()),
+        )
+    });
+    let cue_colors = use_signal(|| CueColors::load(platform.store.as_ref()));
+    let daemon_wave = use_signal(String::new);
+    use_context_provider(|| LookCtx {
+        look,
+        colors,
+        vocal,
+        cue_colors,
+        daemon_wave,
+    });
     rsx! {
         document::Style { {crate::fonts::css()} }
         document::Style { {THEME} }
         document::Style { {LIBRARY_CSS} }
         document::Style { {SCREENS_CSS} }
-        div { class: "{look().classes()}", style: "{colors().css_vars(look().day)}",
+        div { class: "{look().classes()}", style: "{colors().effective(&daemon_wave()).css_vars(look().day)}",
             match phase() {
                 Phase::Starting => rsx! {
                     div { class: "conn", span { class: "mono mut", "CONNECTING…" } }
@@ -182,6 +207,29 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
     let client = use_hook(|| Client::new(&base));
     use_context_provider(|| ClientCtx(client.clone()));
     let lib = use_library(client.clone());
+    // The AUTO waveform color follows the daemon's setting, which the players can change.
+    let LookCtx { daemon_wave, .. } = use_context::<LookCtx>();
+    let c = client.clone();
+    use_future(move || {
+        let c = c.clone();
+        let mut daemon_wave = daemon_wave;
+        async move {
+            loop {
+                if let Ok(s) = c.settings().await {
+                    let w = s
+                        .full
+                        .pointer("/dev_setting/waveform_color")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if w != *daemon_wave.peek() {
+                        daemon_wave.set(w);
+                    }
+                }
+                time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    });
     let feed = use_feed(client);
     let mut route = nav::use_route(initial);
     // Switching away from the library and back returns to the same list and track.

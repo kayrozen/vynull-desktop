@@ -7,6 +7,7 @@ use vynull_api::{HistoryItem, MixerInfo, PlayerInfo};
 use vynull_core::{key, playhead, waveform};
 
 use crate::live::Feed;
+use crate::phrases::PhraseStrip;
 use crate::shell::{ClientCtx, Tab};
 
 #[component]
@@ -175,6 +176,17 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
         }
     }));
 
+    let c = client.clone();
+    let phrases = use_resource(use_reactive!(|(id, external)| {
+        let c = c.clone();
+        async move {
+            if id <= 0 || external {
+                return Vec::new();
+            }
+            c.phrases(id).await.unwrap_or_default()
+        }
+    }));
+
     let since = ((feed.now)() - (feed.live)().at_ms) / 1000.0;
     let pos = playhead::position_secs(p.beat_in_track, p.beat_age_ms, p.bpm, p.is_playing, since);
     let pct = playhead::percent(pos, p.duration_ms);
@@ -268,6 +280,7 @@ fn Deck(player: PlayerInfo, master_key: String, feed: Feed, goto: EventHandler<T
                     div { class: "past", style: "width:{pct}%" }
                     div { class: "phd", style: "left:{pct}%" }
                 }
+                PhraseStrip { phrases: phrases.read().clone().unwrap_or_default(), span_ms: p.duration_ms as f64, class: "full" }
                 div { class: "acts",
                     button { class: "btn", onclick: move |_| goto.call(Tab::Library), "LOAD TRACK" }
                     button { class: "btn", onclick: move |_| goto.call(Tab::Library), "TRACK INFO" }

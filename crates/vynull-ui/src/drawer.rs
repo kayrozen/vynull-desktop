@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use vynull_api::{
-    BeatInfo, BeatSummary, BeatgridAdjust, BeatsPatch, CueInfo, CueKind, TagInfo, TrackInfo,
-    TrackMetadataPatch, WaveEntry3Band,
+    BeatInfo, BeatSummary, BeatgridAdjust, BeatsPatch, CueInfo, CueKind, PhraseInfo, TagInfo,
+    TrackInfo, TrackMetadataPatch, WaveEntry3Band,
 };
 use vynull_core::grid::{self, Grid, Zoom};
 use vynull_core::palette;
@@ -20,7 +20,8 @@ use vynull_core::waveform::{self, OverviewPaths};
 use vynull_platform::{time, PlayStatus, StoreExt};
 
 use crate::library_data::LibState;
-use crate::shell::{ClientCtx, Platform};
+use crate::phrases::PhraseStrip;
+use crate::shell::{ClientCtx, LookCtx, Platform};
 
 /// Props wrapper that compares by pointer, so a big shared value does not get
 /// compared (or cloned) on every render.
@@ -108,6 +109,72 @@ fn art_style(n: i64) -> String {
     )
 }
 
+/// `1.5 MB`, `812 KB`.
+fn bytes_label(n: i64) -> String {
+    if n <= 0 {
+        return "—".into();
+    }
+    let n = n as f64;
+    if n >= 1e9 {
+        format!("{:.2} GB", n / 1e9)
+    } else if n >= 1e6 {
+        format!("{:.1} MB", n / 1e6)
+    } else {
+        format!("{:.0} KB", n / 1e3)
+    }
+}
+
+/// The read-only facts about a track: what the file is and how the library has used it.
+fn info_rows(t: &TrackInfo, bpm: f64) -> Vec<(&'static str, String)> {
+    let dash = |s: String| {
+        if s.trim().is_empty() {
+            "—".to_string()
+        } else {
+            s
+        }
+    };
+    vec![
+        ("BPM", format!("{bpm:.2}")),
+        (
+            "DURATION",
+            if t.duration > 0 {
+                mmss(t.duration)
+            } else {
+                "—".into()
+            },
+        ),
+        (
+            "BITRATE",
+            if t.bitrate > 0 {
+                format!("{} kbps", t.bitrate)
+            } else {
+                "—".into()
+            },
+        ),
+        ("TYPE", dash(t.file_type.to_uppercase())),
+        ("SIZE", bytes_label(t.file_size)),
+        (
+            "TRACK NO.",
+            if t.track_num > 0 {
+                t.track_num.to_string()
+            } else {
+                "—".into()
+            },
+        ),
+        (
+            "RATING",
+            if t.rating > 0 {
+                format!("{} / 5", t.rating)
+            } else {
+                "—".into()
+            },
+        ),
+        ("COLOR", dash(t.color_name.clone())),
+        ("PLAY COUNT", t.play_count.to_string()),
+        ("ADDED", dash(t.date_added.clone())),
+    ]
+}
+
 fn mmss(secs: i64) -> String {
     format!("{:02}:{:02}", secs / 60, secs % 60)
 }
@@ -125,6 +192,7 @@ pub struct DrawerProps {
 #[component]
 pub fn Drawer(props: DrawerProps) -> Element {
     let client = use_context::<ClientCtx>().0;
+    let cue_colors = use_context::<LookCtx>().cue_colors;
     let platform = use_context::<Platform>();
     let audio = platform.audio.clone();
     let track = props.track.clone();
@@ -216,6 +284,11 @@ pub fn Drawer(props: DrawerProps) -> Element {
         let _ = refresh();
         let c = c.clone();
         async move { c.track_cues(id).await.unwrap_or_default() }
+    }));
+    let c = client.clone();
+    let phrases_res = use_resource(use_reactive!(|(id,)| {
+        let c = c.clone();
+        async move { c.phrases(id).await.unwrap_or_default() }
     }));
     let c = client.clone();
     let track_tags = use_resource(use_reactive!(|(id,)| {
@@ -550,6 +623,8 @@ pub fn Drawer(props: DrawerProps) -> Element {
                     t.remixer = updated.remixer;
                     t.original_artist = updated.original_artist;
                     t.mix_name = updated.mix_name;
+                    t.year = updated.year;
+                    t.key = updated.key;
                     t.comment = updated.comment;
                     lib.set(cur.with_track(t));
                     props.on_flash.call("SAVED".into());
@@ -746,7 +821,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                         }
                     }
                 }
-                ZoomView { zoom: zoom(), lines: lines(), cues: cues.clone(), cursor, pxps, duration, on_scrub: move |secs| seek.call(secs) }
+                ZoomView { zoom: zoom(), lines: lines(), cues: cues.clone(), phrases: phrases_res.read().clone().unwrap_or_default(), cursor, pxps, duration, on_scrub: move |secs| seek.call(secs) }
                 Overview {
                     paths: wave_now.as_ref().map(|w| w.overview.clone()),
                     cues: cues.clone(),
@@ -755,6 +830,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                     window: grid::window_secs(bpm_eff),
                     on_seek: move |secs| seek.call(secs),
                 }
+                PhraseStrip { phrases: phrases_res.read().clone().unwrap_or_default(), span_ms: duration * 1000.0, class: "full" }
 
                 div { class: "wt pr2",
                     span { class: "sh2", "PLAYBACK" }
@@ -936,6 +1012,15 @@ pub fn Drawer(props: DrawerProps) -> Element {
                     }
                 }
                 div { class: "card",
+                    span { class: "sh2", "FILE AND LIBRARY" }
+                    dl { class: "ro", "aria-label": "Track information",
+                        for (k , v) in info_rows(&track, bpm_eff) {
+                            dt { key: "{k}", "{k}" }
+                            dd { class: if v == "—" { "dim" } else { "" }, "{v}" }
+                        }
+                    }
+                }
+                div { class: "card",
                     span { class: "sh2", "CUES" }
                     div {
                         if cues.is_empty() { span { class: "mut", "No cues." } }
@@ -966,7 +1051,7 @@ pub fn Drawer(props: DrawerProps) -> Element {
                             onclick: {
                                 let cues = cues.clone();
                                 move |_| match grid::free_hot_cue(&cues) {
-                                    Some(n) => put_cue.call(CueInfo { number: n, kind: CueKind::Cue, time_ms: (*cursor.peek() * 1000.0).round() as i64, loop_ms: -1, color_id: 0, label: String::new() }),
+                                    Some(n) => put_cue.call(CueInfo { number: n, kind: CueKind::Cue, time_ms: (*cursor.peek() * 1000.0).round() as i64, loop_ms: -1, color_id: cue_colors().for_cue(n), label: String::new() }),
                                     None => props.on_flash.call("ALL 8 HOT CUES ARE USED".into()),
                                 }
                             },
@@ -1144,13 +1229,15 @@ impl GridEdit {
     }
 }
 
-const META_FIELDS: [(&str, MetaField, bool); 9] = [
+const META_FIELDS: [(&str, MetaField, bool); 11] = [
     ("TITLE", MetaField::Title, true),
     ("ARTIST", MetaField::Artist, false),
     ("ALBUM", MetaField::Album, false),
     ("LABEL", MetaField::Label, false),
     ("REMIXER", MetaField::Remixer, false),
     ("GENRE", MetaField::Genre, false),
+    ("YEAR", MetaField::Year, false),
+    ("KEY", MetaField::Key, false),
     ("ORIGINAL ARTIST", MetaField::OriginalArtist, false),
     ("MIX NAME", MetaField::MixName, false),
     ("COMMENT", MetaField::Comment, true),
@@ -1166,6 +1253,8 @@ enum MetaField {
     Genre,
     OriginalArtist,
     MixName,
+    Year,
+    Key,
     Comment,
 }
 
@@ -1179,6 +1268,8 @@ struct Meta {
     genre: String,
     original_artist: String,
     mix_name: String,
+    year: String,
+    key: String,
     comment: String,
 }
 
@@ -1193,6 +1284,12 @@ impl Meta {
             genre: t.genre.clone(),
             original_artist: t.original_artist.clone(),
             mix_name: t.mix_name.clone(),
+            year: if t.year > 0 {
+                t.year.to_string()
+            } else {
+                String::new()
+            },
+            key: t.key.clone(),
             comment: t.comment.clone(),
         }
     }
@@ -1207,6 +1304,8 @@ impl Meta {
             MetaField::Genre => &self.genre,
             MetaField::OriginalArtist => &self.original_artist,
             MetaField::MixName => &self.mix_name,
+            MetaField::Year => &self.year,
+            MetaField::Key => &self.key,
             MetaField::Comment => &self.comment,
         }
     }
@@ -1221,6 +1320,8 @@ impl Meta {
             MetaField::Genre => self.genre = v,
             MetaField::OriginalArtist => self.original_artist = v,
             MetaField::MixName => self.mix_name = v,
+            MetaField::Year => self.year = v,
+            MetaField::Key => self.key = v,
             MetaField::Comment => self.comment = v,
         }
     }
@@ -1237,8 +1338,9 @@ impl Meta {
             remixer: d(&self.remixer, &t.remixer),
             original_artist: d(&self.original_artist, &t.original_artist),
             mix_name: d(&self.mix_name, &t.mix_name),
+            year: (self.year != Meta::from(t).year).then(|| self.year.clone()),
+            key: d(&self.key, &t.key),
             comment: d(&self.comment, &t.comment),
-            ..Default::default()
         }
     }
 }
@@ -1258,6 +1360,7 @@ fn ZoomView(
     zoom: Option<Shared<Zoom>>,
     lines: Option<Shared<Grid>>,
     cues: Vec<CueInfo>,
+    phrases: Vec<PhraseInfo>,
     cursor: Signal<f64>,
     pxps: f64,
     duration: f64,
@@ -1291,7 +1394,7 @@ fn ZoomView(
             // A click without movement ends before the full-screen layer below exists.
             onpointerup: move |_| drag.set(None),
             div { class: "zin", style: "width:{width_pct}%;transform:translateX({-shift_pct}%)",
-                ZoomLayers { zoom: z.clone(), lines: lines.clone(), cues, pxps, total }
+                ZoomLayers { zoom: z.clone(), lines: lines.clone(), cues, phrases, pxps, total }
             }
             div { class: "ph" }
         }
@@ -1321,6 +1424,7 @@ fn ZoomLayers(
     zoom: Shared<Zoom>,
     lines: Option<Shared<Grid>>,
     cues: Vec<CueInfo>,
+    phrases: Vec<PhraseInfo>,
     pxps: f64,
     total: f64,
 ) -> Element {
@@ -1335,6 +1439,8 @@ fn ZoomLayers(
             path { d: "{z.mi}", class: "wm" }
             path { d: "{z.hi}", class: "wh" }
         }
+        // The strip is as wide as the canvas, so one pixel column is 1000 / pxps ms.
+        PhraseStrip { phrases, span_ms: total / pxps.max(0.001) * 1000.0, class: "inzoom" }
         if let Some(g) = &lines {
             for (x , n) in g.0.bar_labels.iter() {
                 if *n % 4 == 1 {

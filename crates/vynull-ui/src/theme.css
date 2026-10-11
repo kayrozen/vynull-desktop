@@ -91,3 +91,11 @@ a{color:inherit;text-decoration:none}
 .cp .bdg{min-width:60px;text-align:center}
 .cp .bdg.pl{background:#5FD38D}
 .cp .bdg.off{background:var(--line);color:var(--mut)}
+.phs{position:relative;height:18px;overflow:hidden;background:var(--deep);border-radius:4px}
+.phs.full{margin-top:6px}
+.phs .ph1{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;box-sizing:border-box;border-right:1px solid rgba(0,0,0,.25);color:rgba(0,0,0,.8);font-family:Cousine,monospace;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;user-select:none}
+.phs .ph1:hover{filter:brightness(1.15)}
+.phs .mic{position:absolute;top:1px;right:2px;color:rgba(0,0,0,.85);pointer-events:none}
+.phs .pnm{min-width:0;overflow:hidden;text-overflow:clip}
+.phs.inzoom{position:absolute;left:0;right:auto;width:100%;bottom:0;top:auto;height:16px;border-radius:0;background:none;margin:0;opacity:.9;pointer-events:none}
+.phs.inzoom .ph1{pointer-events:auto}

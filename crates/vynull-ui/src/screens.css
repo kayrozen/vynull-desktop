@@ -176,3 +176,5 @@
 .pgt .ch .mono{white-space:nowrap}
 .pgo .row{padding:0;border-bottom:0}
 .pgo .art{width:auto;height:auto;border-radius:0}
+.pgs .cdg{display:flex;gap:6px;flex-wrap:wrap}
+.pgs .cds{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);font-family:Cousine,monospace;font-weight:700;font-size:14px;color:#05070A;padding:0}

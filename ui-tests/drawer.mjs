@@ -68,7 +68,7 @@ const head = await page.evaluate(() => ({
   title: document.querySelector('.drw .dh .ttl').textContent,
   kv: [...document.querySelectorAll('.drw .dh .kv')].map((k) => k.textContent.replace(/\s+/g, ' ')),
   bars: document.querySelectorAll('.drw .zin .bn').length,
-  paths: document.querySelectorAll('.drw .zin svg path').length,
+  paths: document.querySelectorAll('.drw .zin > svg path').length,
   ovw: document.querySelectorAll('.drw .ovw svg path').length,
 }));
 ok('header shows the track and its BPM', head.title.includes('fixture-120bpm') && head.kv[0].includes('120.00'), JSON.stringify(head.kv));
@@ -138,8 +138,15 @@ function toMs(tc) { const [m, rest] = tc.split(':'); const [s, d] = rest.split('
 // metadata
 await page.evaluate(() => { const l = [...document.querySelectorAll('.drw .fld label')].find((x) => x.textContent.startsWith('COMMENT')); const i = l.querySelector('input'); i.focus(); i.select(); });
 await page.keyboard.type('edited from the drawer');
+for (const [label, value] of [['YEAR', '1999'], ['KEY', '5A']]) {
+  await page.evaluate((lb) => { const l = [...document.querySelectorAll('.drw .fld label')].find((x) => x.textContent.startsWith(lb)); const i = l.querySelector('input'); i.focus(); i.select(); }, label);
+  await page.keyboard.type(value);
+}
 await btn('.drw .dh .btn', 'SAVE');
+ok('SAVE writes year and key too', !!(await until(async () => { const t = await get(`/api/tracks/${wav.id}`); return t.year === 1999 && t.key === '5A'; })));
 ok('SAVE writes the metadata', !!(await until(async () => (await get(`/api/tracks/${wav.id}`)).comment === 'edited from the drawer')));
+ok('the drawer lists file facts', await page.evaluate(() => { const t = document.querySelector('.drw dl.ro')?.textContent || ''; return ['DURATION', 'BITRATE', 'TYPE', 'SIZE', 'PLAY COUNT', 'ADDED'].every((k) => t.includes(k)) && /WAV/.test(t); }));
+ok('the drawer draws phrases over the zoom when the daemon has them', await page.evaluate(() => document.querySelectorAll('.drw .zin .phs.inzoom .ph1').length === document.querySelectorAll('.drw .phs.full .ph1').length));
 ok('the list shows the edit at once', !!(await until(() => page.evaluate(() => [...document.querySelectorAll('.lib .rw .c-cm')].some((e) => e.textContent === 'edited from the drawer')))));
 ok('a search finds the new comment', await (async () => {
   await page.$eval('.search input', (e) => { e.focus(); e.select(); });

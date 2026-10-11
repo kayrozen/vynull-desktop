@@ -1,7 +1,7 @@
 //! Settings screen. Seven sections, as in the mockup:
 //! this client's own look (stored locally), the library source tools, a link to
-//! the overlay page, the player root menu, the editable player settings, and
-//! the read-only mixer and waveform settings.
+//! the overlay page, the player root menu, and the player, mixer and
+//! waveform settings (all editable).
 //!
 //! Player settings are one JSON document on the daemon (`GET /api/settings`,
 //! `full`), replaced as a whole on each edit: last write wins, as the banner says.
@@ -12,11 +12,12 @@ use dioxus::prelude::*;
 use serde_json::{json, Value};
 use vynull_api::{MenuItem, MenuItems, MenuItemsPatch};
 use vynull_core::settings::{self, End, Sub};
-use vynull_core::{overlay, waveform};
+use vynull_core::{grid, overlay, palette, waveform};
 use vynull_platform::StoreExt;
 
-use crate::prefs::{Look, WaveColors};
+use crate::prefs::{CueColors, Look, WaveColors, AUTO, VOCAL_KEY};
 use crate::shell::{ClientCtx, LookCtx, Platform, Tab};
+use vynull_core::phrase::Vocal;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -65,31 +66,13 @@ impl Section {
     }
 }
 
-/// `(mode label, preset colors)` for the waveform color modes and presets.
-const PRESETS: [(&str, [&str; 3]); 6] = [
-    ("3 BAND", ["#B07CFF", "#3FD6C0", "#F4F1E8"]),
-    ("RGB", ["#FF4D4D", "#4DFF88", "#4D8CFF"]),
-    ("BLUE", ["#2F6BFF", "#5C9DFF", "#D6E8FF"]),
-    ("WARM", ["#FF6B3C", "#FFC15A", "#FFF1D0"]),
-    ("ICE", ["#3A7BFF", "#6FD0FF", "#EAF6FF"]),
-    ("MONO", ["#6B7482", "#9AA4B2", "#F4F1E8"]),
-];
 const BAND_SWATCHES: [&str; 12] = [
     "#B07CFF", "#3FD6C0", "#F4F1E8", "#FF6B6B", "#FF9A3C", "#FFC15A", "#5FD38D", "#6FB1FF",
     "#FF8AD0", "#E8E05A", "#9AA4B2", "#2F6BFF",
 ];
 
 fn preset(name: &str) -> WaveColors {
-    let c = PRESETS
-        .iter()
-        .find(|p| p.0 == name)
-        .map_or(PRESETS[0].1, |p| p.1);
-    WaveColors {
-        mode: name.to_string(),
-        lo: c[0].into(),
-        mi: c[1].into(),
-        hi: c[2].into(),
-    }
+    WaveColors::preset(name)
 }
 
 #[component]
@@ -112,8 +95,8 @@ pub fn Settings(base: String, goto: EventHandler<Tab>) -> Element {
                         Section::Overlay => rsx! { OverlayLink { base: base.clone(), goto } },
                         Section::Menu => rsx! { MenuSection {} },
                         Section::My => rsx! { PlayerSettings { sub: PlayerPart::Editable } },
-                        Section::Djm => rsx! { PlayerSettings { sub: PlayerPart::Readonly(Sub::Djm) } },
-                        Section::Dev => rsx! { PlayerSettings { sub: PlayerPart::Readonly(Sub::Dev) } },
+                        Section::Djm => rsx! { PlayerSettings { sub: PlayerPart::Flat(Sub::Djm) } },
+                        Section::Dev => rsx! { PlayerSettings { sub: PlayerPart::Flat(Sub::Dev) } },
                     }
                 }
             }
@@ -126,7 +109,13 @@ pub fn Settings(base: String, goto: EventHandler<Tab>) -> Element {
 #[component]
 fn WebSection() -> Element {
     let platform = use_context::<Platform>();
-    let LookCtx { look, colors } = use_context::<LookCtx>();
+    let LookCtx {
+        look,
+        colors,
+        vocal,
+        cue_colors,
+        daemon_wave,
+    } = use_context::<LookCtx>();
     let mut band = use_signal(|| 0usize); // 0 low, 1 mid, 2 high
 
     let set_look = {
@@ -145,8 +134,27 @@ fn WebSection() -> Element {
             colors.set(c);
         })
     };
+    let set_vocal = {
+        let store = platform.store.clone();
+        use_callback(move |v: Vocal| {
+            let _ = store.set_json(VOCAL_KEY, &v.index());
+            let mut vocal = vocal;
+            vocal.set(v);
+        })
+    };
+    let set_cue_colors = {
+        let store = platform.store.clone();
+        use_callback(move |n: i64| {
+            let mut cc = cue_colors();
+            cc.cycle(n);
+            let _ = store.set_json(CueColors::KEY, &cc);
+            let mut cue_colors = cue_colors;
+            cue_colors.set(cc);
+        })
+    };
     let l = look();
-    let c = colors();
+    let auto = colors().mode == AUTO;
+    let c = colors().effective(&daemon_wave());
     let cur = [c.lo.clone(), c.mi.clone(), c.hi.clone()];
     let band_names = ["KICK (LOW)", "BODY (MID)", "AIR (HIGH)"];
     let paths = waveform::overview_paths(&waveform::demo_entries(400));
@@ -175,10 +183,33 @@ fn WebSection() -> Element {
                 }
             }
             div { class: "sr",
-                div { class: "sl", b { "Waveform colors" } span { "Pick a color scheme." } }
+                div { class: "sl", b { "Waveform colors" } span { "AUTO follows the daemon's waveform color setting (DEVSETTING)." } }
                 div { class: "seg",
+                    button { class: if auto { "on" } else { "" }, onclick: move |_| set_colors.call(WaveColors { mode: AUTO.into(), ..WaveColors::default() }), "AUTO" }
                     for m in ["BLUE", "RGB", "3 BAND"] {
-                        button { key: "{m}", class: if mode == m && same(&c, &preset(m)) { "on" } else { "" }, onclick: move |_| set_colors.call(preset(m)), "{m}" }
+                        button { key: "{m}", class: if !auto && mode == m && same(&c, &preset(m)) { "on" } else { "" }, onclick: move |_| set_colors.call(preset(m)), "{m}" }
+                    }
+                }
+            }
+            div { class: "sr",
+                div { class: "sl", b { "Vocal markers" } span { "A microphone on phrases that sound sung. Higher catches more, with more false positives." } }
+                div { class: "seg",
+                    for v in Vocal::ALL {
+                        button { key: "{v.label()}", class: if vocal() == v { "on" } else { "" }, onclick: move |_| set_vocal.call(v), "{v.label()}" }
+                    }
+                }
+            }
+            div { class: "sr",
+                div { class: "sl", b { "Cue default colors" } span { "Color of new hot cues A to H made here. Click a slot to change it." } }
+                div { class: "cdg",
+                    for n in 1..=8i64 {
+                        {
+                            let cid = cue_colors().for_cue(n);
+                            let hex = palette::color(cid).map_or("#3A4350", |c| c.1);
+                            let name = palette::color(cid).map_or("NONE", |c| c.0);
+                            let letter = grid::cue_letter(n);
+                            rsx! { button { key: "{n}", class: "cds", style: "background:{hex}", title: "Hot cue {letter}: {name}", "aria-label": "Hot cue {letter} default color: {name}", onclick: move |_| set_cue_colors.call(n), "{letter}" } }
+                        }
                     }
                 }
             }
@@ -484,9 +515,10 @@ fn swap(items: &[MenuItem], a: usize, b: usize) -> Vec<MenuItem> {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PlayerPart {
-    /// MYSETTING and MYSETTING2: editable.
+    /// MYSETTING and MYSETTING2, in groups.
     Editable,
-    Readonly(Sub),
+    /// One sub-object (DJMMYSETTING or DEVSETTING), listed flat.
+    Flat(Sub),
 }
 
 #[component]
@@ -575,19 +607,40 @@ fn PlayerSettings(sub: PlayerPart) -> Element {
                 }
             }
         }
-        PlayerPart::Readonly(part) => {
+        PlayerPart::Flat(part) => {
             let rows = settings::entries(&full, part);
             let (name, note) = match part {
-                Sub::Djm => ("DJMMYSETTING.DAT", "Mixer settings. They come from the USB export or the rekordbox import. Import with the --import-settings option."),
+                Sub::Djm => ("DJMMYSETTING", "Mixer settings, written back to the daemon as part of its whole config. The mixer reads them from the USB export or the rekordbox import, so it may overwrite a change."),
                 _ => ("DEVSETTING", "Waveform and key display, sent to the players in 6 bytes. Byte 0 and byte 3 are fixed protocol values and are not shown."),
             };
             rsx! {
                 div { class: "card",
-                    div { class: "grp", "{name}  ", span { class: "rof", "READ ONLY" } }
-                    dl { class: "ro",
-                        for (k , v) in rows.iter() { dt { key: "{k}", "{k}" } dd { "{v}" } }
+                    div { class: "grp", "{name}" }
+                    for (key , value) in rows.iter() {
+                        {
+                            let opts = enums.get(key).cloned().unwrap_or_default();
+                            rsx! {
+                                div { key: "{key}", class: "sr",
+                                    div { class: "sl", b { "{settings::key_label(key)}" } }
+                                    if opts.is_empty() {
+                                        span { class: "mono mut", title: "The daemon lists no choices for this setting.", "{value}" }
+                                    } else {
+                                        div { class: "seg",
+                                            for o in opts.iter() {
+                                                {
+                                                    let (key, o2) = (key.clone(), o.clone());
+                                                    rsx! { button { key: "{o}", class: if o == value { "on" } else { "" }, onclick: move |_| set.call((key.clone(), o2.clone())), "{settings::option_label(o)}" } }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+                    if rows.is_empty() { span { class: "mut", "The daemon returned no {name} values." } }
                     div { class: "rn", "{note}" }
+                    if !msg().is_empty() { div { class: "rn mono", "{msg()}" } }
                 }
             }
         }

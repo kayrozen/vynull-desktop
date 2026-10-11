@@ -13,6 +13,7 @@ mod library_tools;
 mod live;
 mod nav;
 mod overlay;
+mod phrases;
 mod players;
 mod prefs;
 mod settings;

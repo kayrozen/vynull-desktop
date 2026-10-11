@@ -217,3 +217,7 @@
 .app.day .lib .gbeat{stroke:rgba(26,31,38,.18)}
 .app.day .lib .gbar{stroke:rgba(26,31,38,.55)}
 .lib .c-b,.lib .c-m{box-sizing:border-box;padding-right:14px}
+.lib dl.ro{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}
+.lib dl.ro dt{font-family:Cousine,monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);align-self:center}
+.lib dl.ro dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+.lib dl.ro dd.dim{color:var(--faint)}

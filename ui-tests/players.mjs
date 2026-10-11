@@ -39,6 +39,20 @@ ok('subtitle counts players and mixers', /3 players and 1 mixer/.test(info.subti
 ok('top bar shows link, stream and device', info.chips.some((c) => /LINK ON/.test(c)) && info.chips.includes('LIVE') && info.chips.some((c) => /Vynull #17/.test(c)), info.chips.join(' | '));
 ok('recent plays are newest first', info.history.length === 3 && info.history[0] === 'Sample Track 0005', info.history.join(' | '));
 
+ok('player cards show the phrase strip', !!(await until(() => page.evaluate(() => document.querySelectorAll('.pcs .phs.full .ph1').length >= 5))));
+const mics = () => page.evaluate(() => document.querySelectorAll('.pcs .phs.full .mic').length);
+const perDeck = await page.evaluate(() => document.querySelectorAll('.pcs .phs.full').length);
+ok('MED marks the two phrases whose score is above 0.12', (await mics()) === 2 * perDeck, `${await mics()} for ${perDeck} strips`);
+ok('phrases carry their name and times', await page.evaluate(() => /Chorus .*1:30 . 2:10/.test(document.querySelector('.pcs .phs.full .ph1:nth-child(4)').title)));
+await page.evaluate(() => localStorage.setItem('vynull.vocal', '3'));
+await page.reload(); await page.waitForSelector('.pcs .phs.full .ph1', { timeout: 20000 }); await sleep(500);
+ok('HIGH also marks the 0.10 phrase', (await mics()) === 3 * (await page.evaluate(() => document.querySelectorAll('.pcs .phs.full').length)));
+await page.evaluate(() => localStorage.setItem('vynull.vocal', '0'));
+await page.reload(); await page.waitForSelector('.pcs .phs.full .ph1', { timeout: 20000 }); await sleep(500);
+ok('OFF marks none', (await mics()) === 0);
+await page.evaluate(() => localStorage.removeItem('vynull.vocal'));
+await page.reload(); await page.waitForSelector('.pcs .phs.full .ph1', { timeout: 20000 }); await sleep(500);
+
 const a = info.phd;
 await sleep(1500);
 const b = await page.evaluate(() => [...document.querySelectorAll('.phd')].map((e) => parseFloat(e.style.left)));

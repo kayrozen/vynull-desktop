@@ -9,6 +9,7 @@ pub mod key;
 pub mod net;
 pub mod overlay;
 pub mod palette;
+pub mod phrase;
 pub mod playhead;
 pub mod queue;
 pub mod route;

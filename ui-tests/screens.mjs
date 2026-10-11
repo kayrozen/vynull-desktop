@@ -102,11 +102,16 @@ await fetch(FAKE + '/api/settings', { method: 'POST', body: JSON.stringify({ ful
 await page.evaluate(() => { const r = [...document.querySelectorAll('.pgs .sr')].find((x) => /Sync/.test(x.textContent)); [...r.querySelectorAll('.seg button')].find((b) => b.textContent === 'ON').click(); });
 ok('settings: an edit starts from the daemon\'s current config, not a stale copy', !!(await until(async () => { const f = (await get('/api/settings')).full; return f.my_setting.sync === 'on' && f.my_setting.quantize === 'off'; })));
 
-// read-only sections
+// DJMMYSETTING and DEVSETTING: editable the same way
+const rowBtn = (label, text) => page.evaluate((l, t) => { const r = [...document.querySelectorAll('.pgs .sr')].find((x) => x.textContent.includes(l)); [...r.querySelectorAll('.seg button')].find((b) => b.textContent === t).click(); }, label, text);
 await section('DJMMYSETTING');
-ok('settings: the mixer section is read only', !!(await until(() => page.evaluate(() => /READ ONLY/.test(document.body.innerText) && /cross_fader_curve/.test(document.body.innerText) && document.querySelectorAll('.pgs .ro dd').length === 3 && !document.querySelector('.pgs .seg')))));
+ok('settings: the mixer section lists its values with choices', !!(await until(() => page.evaluate(() => /Cross fader curve/.test(document.body.innerText) && document.querySelectorAll('.pgs .sr .seg').length === 3 && !/READ ONLY/.test(document.body.innerText)))));
+await rowBtn('Cross fader curve', 'SLOW CUT');
+ok('settings: a mixer change posts the whole config', !!(await until(async () => { const f = (await writes('POST', '/api/settings')).at(-1)?.[2].full; return f && f.djm_my_setting.cross_fader_curve === 'slow_cut' && f.djm_my_setting.mic_low_cut === 'on' && f.my_setting.sync === 'on' && f.dev_setting.waveform_color === 'blue'; })));
 await section('DEVSETTING');
-ok('settings: so is the waveform section', !!(await until(() => page.evaluate(() => /waveform_color/.test(document.body.innerText) && /READ ONLY/.test(document.body.innerText)))));
+ok('settings: the waveform section is editable', !!(await until(() => page.evaluate(() => /Waveform color/.test(document.body.innerText) && document.querySelectorAll('.pgs .sr .seg').length === 4 && !/READ ONLY/.test(document.body.innerText)))));
+await rowBtn('Waveform color', 'RGB');
+ok('settings: a waveform change posts the whole config', !!(await until(async () => { const f = (await writes('POST', '/api/settings')).at(-1)?.[2].full; return f && f.dev_setting.waveform_color === 'rgb' && f.dev_setting.key_display === 'classic' && f.djm_my_setting.cross_fader_curve === 'slow_cut'; })));
 
 // PLAYER MENU
 await section('PLAYER MENU');
@@ -164,6 +169,16 @@ const night = await bg();
 await btn('.pgs .seg button', 'DAY', true);
 ok('settings: DAY switches the whole app to the light palette', !!(await until(async () => (await bg()) !== night)) && await page.evaluate(() => document.querySelector('.app').classList.contains('day')), `${night} -> ${await bg()}`);
 ok('settings: and the choice is remembered', await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.look')).day === true));
+// vocal markers, waveform AUTO, cue default colors
+const stored = (k) => page.evaluate((key) => JSON.parse(localStorage.getItem('vynull.' + key)), k);
+ok('settings: vocal markers default to MED', await page.evaluate(() => [...document.querySelectorAll('.pgs .sr')].find((x) => /Vocal markers/.test(x.textContent)).querySelector('.seg button.on').textContent === 'MED'));
+await page.evaluate(() => [...[...document.querySelectorAll('.pgs .sr')].find((x) => /Vocal markers/.test(x.textContent)).querySelectorAll('.seg button')].find((b) => b.textContent === 'HIGH').click());
+ok('settings: and the level is remembered', !!(await until(async () => (await stored('vocal')) === 3)));
+await page.evaluate(() => [...document.querySelectorAll('.pgs .cds')][0].click());
+await page.evaluate(() => [...document.querySelectorAll('.pgs .cds')][0].click());
+ok('settings: a click on a cue slot steps its default color', !!(await until(async () => (await stored('cuecolors'))?.[0] === 2)) && (await stored('cuecolors')).slice(1).every((c) => c === 0));
+await btn('.pgs .seg button', 'AUTO', true);
+ok('settings: AUTO takes the daemon waveform color (rgb here)', !!(await until(() => page.evaluate(() => getComputedStyle(document.querySelector('.app')).getPropertyValue('--wk').trim().toUpperCase() === '#FF4D4D'), 12000)), await page.evaluate(() => getComputedStyle(document.querySelector('.app')).getPropertyValue('--wk')));
 await page.screenshot({ path: 'ui-day-settings.png' });
 await btn('.pgs .seg button', 'COMPACT', true);
 ok('settings: COMPACT turns on compact rows', await page.evaluate(() => document.querySelector('.app').classList.contains('compact')));

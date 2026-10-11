@@ -155,9 +155,9 @@ pub fn entries(full: &Value, sub: Sub) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-/// The editable player settings by group: `my_setting` and `my_setting_2`, known
-/// ones first in the mockup's order. `dev_setting` and `djm_my_setting` are
-/// read-only (plan decision) and are not here.
+/// The player settings of `my_setting` and `my_setting_2` by group, known ones
+/// first in the mockup's order. `dev_setting` and `djm_my_setting` are listed
+/// flat by [`entries`].
 pub fn player_settings(full: &Value) -> Vec<(Group, Vec<(String, String)>)> {
     let mut all: Vec<(String, String)> = Vec::new();
     for sub in [Sub::My, Sub::My2] {
