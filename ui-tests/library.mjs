@@ -151,6 +151,8 @@ const geo = () => page.evaluate(() => {
 });
 const g0 = await geo();
 ok('header labels sit over their cells', Object.keys(g0.h).every((k) => g0.r[k] && g0.h[k][0] === g0.r[k][0] && g0.h[k][1] === g0.r[k][1]), JSON.stringify(g0.h));
+const allRows = await page.evaluate(() => [...document.querySelectorAll('.lib .rw')].map((r) => [...r.children].map((e) => Math.round(e.getBoundingClientRect().left)).join(',')));
+ok('every row has the same column positions, a MISSING badge included', new Set(allRows).size === 1, [...new Set(allRows)].join(' | '));
 const rzBox = async (cls) => page.evaluate((c) => { const r = document.querySelector(`.lh .${c} .rz`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, cls);
 const rb = await rzBox('c-cm');
 await page.mouse.move(rb.x, rb.y); await page.mouse.down(); await page.mouse.move(rb.x + 60, rb.y, { steps: 4 }); await page.mouse.up(); await sleep(300);

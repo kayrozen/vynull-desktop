@@ -60,7 +60,7 @@
 .lib .rw:hover{background:var(--rh,var(--row-hover))}
 .lib .rw.on{background:var(--rs,var(--hover));border-left-color:var(--accent-text)}
 .lib .c-a{flex:none;width:44px;height:44px;border-radius:6px}
-.lib .c-t{flex:1 0 220px;min-width:220px}
+.lib .c-t{flex:1 0 220px;min-width:220px;contain:inline-size}
 .lib .ttl{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lib .sub{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden}
 .lib .sub i{width:8px;height:8px;border-radius:50%;display:block;flex:none}
@@ -216,3 +216,4 @@
 .lib .gbar{stroke:rgba(255,255,255,.5)}
 .app.day .lib .gbeat{stroke:rgba(26,31,38,.18)}
 .app.day .lib .gbar{stroke:rgba(26,31,38,.55)}
+.lib .c-b,.lib .c-m{box-sizing:border-box;padding-right:14px}
