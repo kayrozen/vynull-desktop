@@ -668,6 +668,12 @@ pub fn Drawer(props: DrawerProps) -> Element {
     } else {
         "height:50%".to_string()
     };
+    let art_url = client.url(&format!("/api/artwork/{}", track.art_id));
+    let side_cut = if dh() > 0.0 {
+        format!("{}px", dh())
+    } else {
+        "50%".to_string()
+    };
     let handle_style = if dh() > 0.0 {
         format!("bottom:calc({}px - 9px)", dh())
     } else {
@@ -684,9 +690,15 @@ pub fn Drawer(props: DrawerProps) -> Element {
             ondoubleclick: move |_| dh.set(0.0),
             i {}
         }
+        // The drawer covers the bottom of the sidebar, whose scrollbar some webviews paint above it: end the sidebar where the drawer starts.
+        style { ".lib .side{{max-height:calc(100% - {side_cut})}}" }
         section { class: "drw", style: "{height_style}", "aria-label": "Track details",
             div { class: "dh",
-                div { class: "art", style: "{art_style(id)}" }
+                div { class: "art", style: "{art_style(id)}",
+                    if track.art_id > 0 {
+                        img { src: "{art_url}", alt: "" }
+                    }
+                }
                 div { class: "tt",
                     div { class: "ttl", style: "font-size:20px", "{track.title}" }
                     div { class: "mut", "{track.artist}" }
@@ -1316,8 +1328,8 @@ fn ZoomLayers(
     rsx! {
         svg { view_box: "0 0 {total} 100", preserve_aspect_ratio: "none",
             if let Some(g) = &lines {
-                path { d: "{g.0.beats}", fill: "none", stroke: "rgba(255,255,255,.16)", stroke_width: "1", vector_effect: "non-scaling-stroke" }
-                path { d: "{g.0.bars}", fill: "none", stroke: "rgba(255,255,255,.5)", stroke_width: "1.5", vector_effect: "non-scaling-stroke" }
+                path { d: "{g.0.beats}", fill: "none", class: "gbeat", stroke_width: "1", vector_effect: "non-scaling-stroke" }
+                path { d: "{g.0.bars}", fill: "none", class: "gbar", stroke_width: "1.5", vector_effect: "non-scaling-stroke" }
             }
             path { d: "{z.lo}", class: "wl" }
             path { d: "{z.mi}", class: "wm" }

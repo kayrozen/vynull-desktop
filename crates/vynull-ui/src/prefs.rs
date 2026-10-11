@@ -48,7 +48,13 @@ impl WaveColors {
     }
 
     /// CSS custom properties read by the `.wl`, `.wm` and `.wh` waveform classes.
-    pub fn css_vars(&self) -> String {
+    /// The default cream high band vanishes on the day theme's light panels, so
+    /// untouched defaults become a darker set there; chosen colors are kept.
+    pub fn css_vars(&self, day: bool) -> String {
+        let d = Self::default();
+        if day && self.lo == d.lo && self.mi == d.mi && self.hi == d.hi {
+            return "--wk:#7A3FD6;--wm:#0E9F8E;--wh:#4A4638".to_string();
+        }
         format!("--wk:{};--wm:{};--wh:{}", self.lo, self.mi, self.hi)
     }
 }

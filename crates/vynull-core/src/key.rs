@@ -31,13 +31,15 @@ pub fn compatible(a: &str, b: &str) -> bool {
 
 /// How a track's key relates to the reference (master) key, as the library
 /// tints it: green mixes well, yellow is two steps up the wheel, orange is the
-/// energy-boost jump of seven.
+/// energy-boost jump of seven, red is the jump of four (it clashes: shown so
+/// it can be avoided). Everything else further away is left untinted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Relation {
     None,
     Ok,
     Yellow,
     Orange,
+    Red,
 }
 
 impl Relation {
@@ -48,6 +50,7 @@ impl Relation {
             Relation::Ok => "key ok",
             Relation::Yellow => "key y",
             Relation::Orange => "key o",
+            Relation::Red => "key r",
         }
     }
 }
@@ -64,6 +67,8 @@ pub fn relation(key: &str, reference: &str) -> Relation {
         Relation::Yellow
     } else if minor == minor_b && dd == 7 {
         Relation::Orange
+    } else if minor == minor_b && dd == 4 {
+        Relation::Red
     } else {
         Relation::None
     }
@@ -92,6 +97,8 @@ mod tests {
         assert_eq!(r("9B"), Relation::Ok);
         assert_eq!(r("11A"), Relation::Yellow);
         assert_eq!(r("4A"), Relation::Orange);
+        assert_eq!(r("1A"), Relation::Red);
+        assert_eq!(r("1B"), Relation::None);
         assert_eq!(r("3B"), Relation::None);
         assert_eq!(r("10B"), Relation::None);
         assert_eq!(r("nope"), Relation::None);

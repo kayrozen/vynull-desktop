@@ -147,7 +147,7 @@ pub fn App() -> Element {
         document::Style { {THEME} }
         document::Style { {LIBRARY_CSS} }
         document::Style { {SCREENS_CSS} }
-        div { class: "{look().classes()}", style: "{colors().css_vars()}",
+        div { class: "{look().classes()}", style: "{colors().css_vars(look().day)}",
             match phase() {
                 Phase::Starting => rsx! {
                     div { class: "conn", span { class: "mono mut", "CONNECTING…" } }
