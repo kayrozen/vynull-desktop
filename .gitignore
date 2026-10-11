@@ -1,0 +1,5 @@
+/target
+/spike/target
+/ui-tests/node_modules
+/ui-tests/*.png
+/.claude

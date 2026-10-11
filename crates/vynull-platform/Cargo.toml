@@ -1,0 +1,34 @@
+[package]
+name = "vynull-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+futures-channel = "0.3.34"
+futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror = "2.0.21"
+vynull-api.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+cpal = "0.18.2"
+dirs = "7.0.0"
+eventsource-stream = "0.2.3"
+reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "stream"] }
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "flac", "wav", "ogg", "vorbis", "pcm"] }
+tokio = { version = "1.53.2", features = ["time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.4.0", features = ["futures"] }
+js-sys = "0.3.106"
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+web-sys = { version = "0.3.106", features = ["EventSource", "MessageEvent", "Event", "Storage", "Window", "HtmlAudioElement", "HtmlMediaElement", "MediaError", "AudioContext", "AudioContextState", "AudioDestinationNode", "AudioNode", "AudioParam", "GainNode", "OscillatorNode", "OscillatorType", "BaseAudioContext", "Location", "Performance"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.2", features = ["rt", "macros", "net", "io-util", "time"] }

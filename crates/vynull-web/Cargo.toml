@@ -1,0 +1,15 @@
+[package]
+name = "vynull-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The browser entry point only exists on wasm32. On other targets this crate is
+# an empty stub, so `cargo check --workspace` never builds `dioxus-web` for the
+# host (it leaves web-sys' `Location` feature to other crates, which fails).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+dioxus = { version = "0.7.10", default-features = false, features = ["web", "launch", "macro", "html", "signals", "hooks", "document"] }
+vynull-platform.workspace = true
+vynull-ui.workspace = true

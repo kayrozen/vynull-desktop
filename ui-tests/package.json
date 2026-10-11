@@ -1,0 +1,9 @@
+{
+  "name": "vynull-ui-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for the Vynull web client, driven through Firefox with puppeteer-core.",
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
