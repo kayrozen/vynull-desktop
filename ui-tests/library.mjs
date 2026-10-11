@@ -277,7 +277,7 @@ ok('and recounts for another source', !!(await until(() => page.evaluate(() => /
 await btn('.tool .btn', 'BROWSE');
 ok('the folder picker lists the daemon folders', !!(await until(() => page.evaluate(() => /\/media/.test(document.querySelector('.fp')?.textContent || '')))));
 await page.evaluate(() => [...document.querySelectorAll('.fpe')].find((e) => e.textContent.includes('/media')).click());
-await sleep(400);
+await until(() => page.evaluate(() => [...document.querySelectorAll('.fp .btn')].some((b) => /USE THIS FOLDER/.test(b.textContent)))); // a slow runner needs longer than a fixed wait
 await btn('.fp .btn', 'USE THIS FOLDER');
 ok('picking a folder fills the destination', await page.evaluate(() => document.querySelector('.tool input.mono').value === '/media'));
 await btn('.tool .btn', 'WRITE USB');
