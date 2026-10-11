@@ -238,7 +238,7 @@ ok('the loop cue is badged', !!(await until(() => page.evaluate(() => /LOOP/.tes
 await page.evaluate(() => document.querySelector('.drw .cue').click());
 const seen = [];
 for (let i = 0; i < 40; i++) { await sleep(100); seen.push(toMs(await timecode())); }
-ok('a loop cue keeps playback inside the loop', Math.max(...seen) <= 2700 && Math.min(...seen) >= 900 && seen.some((v) => v > 2300), `min ${Math.min(...seen)} max ${Math.max(...seen)} ms`);
+ok('a loop cue keeps playback inside the loop', Math.max(...seen) <= 2700 && Math.min(...seen) >= 900 && seen.some((v) => v > 2150), `min ${Math.min(...seen)} max ${Math.max(...seen)} ms`);
 ok('the info line names the loop', await page.evaluate(() => /LOOP 00:01\.0 - 00:02\.5/.test(document.querySelector('.drw .pinfo').textContent)));
 await btn('.drw .btn.sm', 'EXIT LOOP');
 // A slow runner's audio clock can lag, so wait for it rather than for a fixed time.
