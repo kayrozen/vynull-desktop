@@ -126,6 +126,7 @@
 .lib .tg.on{background:#FFC15A}
 .lib .tg.on i{left:auto;right:4px;background:#05070A}
 .lib .tg:disabled{opacity:.35}
+.lib .key.ok{background:#3FD6C0;color:#05070A;font-weight:600}
 .lib .key.y{background:#E8E05A;color:#05070A;font-weight:600}
 .lib .key.o{background:#FF9A3C;color:#05070A;font-weight:600}
 .lib .key.r{background:#FF6B6B;color:#05070A;font-weight:600}

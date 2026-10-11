@@ -184,6 +184,13 @@ await openTab(page, 'LIBRARY');
 await sleep(300);
 await side('WARM-UP');
 
+// ---- key colors against the master deck (the fake daemon's master plays 9A)
+const keyColors = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.lib .rw .c-k .key')].map((k) => [k.textContent.trim(), getComputedStyle(k).backgroundColor])));
+const kc = await until(async () => { const c = await keyColors(); return c['8A'] && c['11A'] ? c : false; });
+ok('green: same key, neighbours and the relative key are drawn green, not the plain chip', !!kc && ['8A', '9B'].every((k) => !kc[k] || kc[k] === 'rgb(63, 214, 192)'), JSON.stringify(kc));
+ok('green is really painted for at least one chip', !!kc && Object.values(kc).includes('rgb(63, 214, 192)'));
+ok('yellow, orange and a plain key keep their colors', !!kc && kc['11A'] === 'rgb(232, 224, 90)' && kc['4A'] === 'rgb(255, 154, 60)');
+
 // ---- artwork and row waveforms
 await side('COLLECTION');
 await until(() => page.evaluate(() => document.querySelectorAll('.lib .rw .c-a img').length > 0));
