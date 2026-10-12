@@ -32,15 +32,35 @@ pub fn OverlayFrame(base: String, id: String) -> Element {
             }
         }
     });
-    let src = overlay::url(&base);
+    // The page is fetched here and handed to the frame as text, not loaded from its address: a
+    // desktop webview sends every navigation to an http address to the system browser instead.
+    // The `<base>` keeps the page's own requests going to the daemon, and the sandbox keeps the
+    // page from reaching this app's storage.
+    let client = use_context::<ClientCtx>().0;
+    let page = use_resource(move || {
+        let c = client.clone();
+        async move { c.overlay_page().await.map_err(|e| e.to_string()) }
+    });
+    let doc = match &*page.read() {
+        Some(Ok(html)) => Ok(overlay::with_base(html, &base)),
+        Some(Err(e)) => Err(e.clone()),
+        None => Err(String::new()),
+    };
     rsx! {
         div { class: "ovf", id: "{id}",
-            iframe {
-                class: "ovf-in",
-                src: "{src}",
-                title: "Stream overlay, as the daemon draws it",
-                tabindex: "-1",
-                style: "transform:scale({scale})",
+            match doc {
+                Ok(doc) => rsx! {
+                    iframe {
+                        class: "ovf-in",
+                        srcdoc: "{doc}",
+                        "sandbox": "allow-scripts",
+                        title: "Stream overlay, as the daemon draws it",
+                        tabindex: "-1",
+                        style: "transform:scale({scale})",
+                    }
+                },
+                Err(e) if !e.is_empty() => rsx! { div { class: "ovf-err", "Could not load the overlay page: {e}" } },
+                Err(_) => rsx! {},
             }
         }
     }

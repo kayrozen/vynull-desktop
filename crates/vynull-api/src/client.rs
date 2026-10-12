@@ -99,6 +99,12 @@ impl Client {
         Ok(Self::check(req.send().await?).await?.json().await?)
     }
 
+    /// The daemon's `/overlay` page as HTML text.
+    pub async fn overlay_page(&self) -> Result<String, Error> {
+        let resp = Self::check(self.http.get(self.url("/overlay")).send().await?).await?;
+        Ok(resp.text().await?)
+    }
+
     pub async fn status(&self) -> Result<StatusResponse, Error> {
         self.get("/api/status").await
     }

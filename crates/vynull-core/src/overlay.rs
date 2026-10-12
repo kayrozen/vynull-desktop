@@ -39,6 +39,24 @@ pub fn url(base: &str) -> String {
     format!("{}/overlay", base.trim_end_matches('/'))
 }
 
+/// The daemon's overlay page with a `<base>` so its relative requests (`/api/...`) go to the daemon
+/// when the page is shown from somewhere else, such as an `iframe` `srcdoc` in the app.
+pub fn with_base(html: &str, base: &str) -> String {
+    let base = base
+        .trim_end_matches('/')
+        .replace('&', "&amp;")
+        .replace('"', "&quot;");
+    let tag = format!("<base href=\"{base}/\">");
+    let lower = html.to_ascii_lowercase();
+    match lower
+        .find("<head")
+        .and_then(|i| lower[i..].find('>').map(|j| i + j + 1))
+    {
+        Some(at) => format!("{}{tag}{}", &html[..at], &html[at..]),
+        None => format!("{tag}{html}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,6 +71,23 @@ mod tests {
         assert_eq!(step(10, 1, HISTORY), 10);
         assert_eq!(step(40, -1, BAND), 40);
         assert_eq!(step(290, 1, BAND), 300);
+    }
+
+    #[test]
+    fn the_base_goes_right_after_the_head_tag() {
+        let h =
+            "<!DOCTYPE html>\n<html><HEAD lang=x><meta charset=utf-8></HEAD><body>hi</body></html>";
+        let out = with_base(h, "http://10.0.0.5:9443/");
+        assert!(
+            out.contains("<HEAD lang=x><base href=\"http://10.0.0.5:9443/\"><meta charset=utf-8>"),
+            "{out}"
+        );
+        assert_eq!(out.matches("<base").count(), 1);
+        assert!(with_base("<p>no head</p>", "http://h").starts_with("<base href=\"http://h/\"><p>"));
+        assert!(
+            with_base(h, "http://h\"x").contains("http://h&quot;x/"),
+            "a quote cannot end the attribute"
+        );
     }
 
     #[test]

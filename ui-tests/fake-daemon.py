@@ -303,8 +303,9 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p, q = u.path, parse_qs(u.query)
         if p == "/overlay":
-            body = b"<!doctype html><title>overlay</title><body style='margin:0;background:transparent'><div id=card style='position:fixed;left:40px;bottom:40px;width:440px;height:120px;background:#222;color:#fff'>fake overlay page</div>"
+            body = b"<!doctype html><title>overlay</title><body style='margin:0;background:transparent'><div id=card style='position:fixed;left:40px;bottom:40px;width:440px;height:120px;background:#222;color:#fff'>fake overlay page</div><script>fetch('/api/nowplaying?from=overlay-page').catch(()=>{})</script>"
             self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")  # the real daemon sends it on every response
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

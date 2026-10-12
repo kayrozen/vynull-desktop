@@ -343,8 +343,9 @@ ok('RGB: every color is on the 3-bit scale of the format (multiples of 38)', [..
 // ---- the Overlay tab shows the daemon's real /overlay page, not a drawing of it
 await page.evaluate(() => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes('OVERLAY')).click());
 await page.waitForSelector('.pgo .stage iframe', { timeout: 15000 });
-const overlayFrame = await until(async () => page.frames().find((f) => f !== page.mainFrame() && f.url().endsWith('/overlay')), 15000);
-ok('overlay: the frame loaded the real page from the daemon', !!overlayFrame, page.frames().map((f) => f.url()).join(' '));
+const isOverlay = async (f) => f !== page.mainFrame() && (await f.evaluate(() => document.title).catch(() => '')).includes('Stream Overlay');
+const overlayFrame = await until(async () => { for (const f of page.frames()) if (await isOverlay(f)) return f; return false; }, 15000);
+ok('overlay: the frame holds the real page from the daemon (its own title)', !!overlayFrame, page.frames().map((f) => f.url()).join(' '));
 const real = overlayFrame ? await until(async () => overlayFrame.evaluate(() => ({ w: innerWidth, h: innerHeight, bg: getComputedStyle(document.body).backgroundColor, html: document.documentElement.outerHTML.length })).catch(() => null), 10000) : null;
 ok('overlay: that page sees a 1920 x 1080 window, as in OBS', !!real && real.w === 1920 && real.h === 1080, JSON.stringify(real));
 ok('overlay: and keeps its transparent background', !!real && /rgba\(0, 0, 0, 0\)|transparent/.test(real.bg), JSON.stringify(real));
