@@ -189,12 +189,27 @@ pub fn player_settings(full: &Value) -> Vec<(Group, Vec<(String, String)>)> {
 }
 
 /// A copy of `full` with `key` set to `value`, or `None` if `key` is unknown.
+///
+/// The whole document is sent back, so the value keeps the JSON type it had: a setting the
+/// daemon stores as a number or a boolean must not come back as a string.
 pub fn with_value(full: &Value, key: &str, value: &str) -> Option<Value> {
     let sub = locate(full, key)?;
     let mut next = full.clone();
-    next.get_mut(sub.key())?
-        .as_object_mut()?
-        .insert(key.to_string(), Value::String(value.to_string()));
+    let slot = next.get_mut(sub.key())?.as_object_mut()?;
+    let typed = match slot.get(key) {
+        Some(Value::Number(_)) => value
+            .parse::<i64>()
+            .map(Value::from)
+            .or_else(|_| value.parse::<f64>().map(Value::from))
+            .unwrap_or_else(|_| Value::String(value.to_string())),
+        Some(Value::Bool(_)) => match value.to_ascii_lowercase().as_str() {
+            "true" | "on" | "yes" => Value::Bool(true),
+            "false" | "off" | "no" => Value::Bool(false),
+            _ => Value::String(value.to_string()),
+        },
+        _ => Value::String(value.to_string()),
+    };
+    slot.insert(key.to_string(), typed);
     Some(next)
 }
 
@@ -336,5 +351,41 @@ mod tests {
             ]
         );
         assert!(entries(&f, Sub::Djm).is_empty());
+    }
+
+    #[test]
+    fn an_edit_keeps_the_json_type_of_the_value() {
+        let f = json!({
+            "my_setting": {"quantize": "on", "tempo": 10, "ratio": 1.5, "lock": true, "unlock": false},
+            "dev_setting": {"waveform_color": "blue"}
+        });
+        let n = with_value(&f, "tempo", "16").unwrap();
+        assert_eq!(
+            n["my_setting"]["tempo"],
+            json!(16),
+            "a number stays a number"
+        );
+        let n = with_value(&f, "ratio", "2.25").unwrap();
+        assert_eq!(n["my_setting"]["ratio"], json!(2.25));
+        let n = with_value(&f, "lock", "off").unwrap();
+        assert_eq!(
+            n["my_setting"]["lock"],
+            json!(false),
+            "a boolean stays a boolean"
+        );
+        let n = with_value(&f, "unlock", "true").unwrap();
+        assert_eq!(n["my_setting"]["unlock"], json!(true));
+        let n = with_value(&f, "quantize", "off").unwrap();
+        assert_eq!(
+            n["my_setting"]["quantize"],
+            json!("off"),
+            "a string stays a string"
+        );
+        // a value that does not fit the old type is kept as text rather than lost
+        let n = with_value(&f, "tempo", "wide").unwrap();
+        assert_eq!(n["my_setting"]["tempo"], json!("wide"));
+        // nothing else changed
+        assert_eq!(n["dev_setting"], f["dev_setting"]);
+        assert!(with_value(&f, "nope", "x").is_none());
     }
 }

@@ -39,19 +39,36 @@ pub fn url(base: &str) -> String {
     format!("{}/overlay", base.trim_end_matches('/'))
 }
 
+/// Position just after the opening `<head ...>` tag, if there is one. `<header>` is not `<head>`.
+fn after_head_open(html: &str) -> Option<usize> {
+    let lower = html.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(i) = lower[from..].find("<head").map(|i| i + from) {
+        let next = lower.as_bytes().get(i + 5).copied();
+        if matches!(
+            next,
+            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') | Some(b'/')
+        ) {
+            return lower[i..].find('>').map(|j| i + j + 1);
+        }
+        from = i + 5;
+    }
+    None
+}
+
 /// The daemon's overlay page with a `<base>` so its relative requests (`/api/...`) go to the daemon
 /// when the page is shown from somewhere else, such as an `iframe` `srcdoc` in the app.
+/// A page that already has a `<base>` is left alone.
 pub fn with_base(html: &str, base: &str) -> String {
+    if html.to_ascii_lowercase().contains("<base") {
+        return html.to_string();
+    }
     let base = base
         .trim_end_matches('/')
         .replace('&', "&amp;")
         .replace('"', "&quot;");
     let tag = format!("<base href=\"{base}/\">");
-    let lower = html.to_ascii_lowercase();
-    match lower
-        .find("<head")
-        .and_then(|i| lower[i..].find('>').map(|j| i + j + 1))
-    {
+    match after_head_open(html) {
         Some(at) => format!("{}{tag}{}", &html[..at], &html[at..]),
         None => format!("{tag}{html}"),
     }

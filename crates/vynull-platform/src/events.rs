@@ -23,7 +23,7 @@ pub enum StreamItem {
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(not(target_arch = "wasm32"))]
-pub use native::state_stream;
+pub use native::{state_stream, state_stream_with};
 
 #[cfg(target_arch = "wasm32")]
 mod web;

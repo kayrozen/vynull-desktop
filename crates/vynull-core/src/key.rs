@@ -4,14 +4,16 @@
 /// Parse `"9A"`, `"12B"` into (number 1..=12, minor?). Letter A is minor.
 pub(crate) fn parse(key: &str) -> Option<(u8, bool)> {
     let key = key.trim();
-    let (num, letter) = key.split_at(key.len().checked_sub(1)?);
+    // Split off the last character, not the last byte: a key can end in "♯" or "♭".
+    let letter = key.chars().next_back()?;
+    let num = &key[..key.len() - letter.len_utf8()];
     let n: u8 = num.parse().ok()?;
     if !(1..=12).contains(&n) {
         return None;
     }
     match letter {
-        "A" | "a" => Some((n, true)),
-        "B" | "b" => Some((n, false)),
+        'A' | 'a' => Some((n, true)),
+        'B' | 'b' => Some((n, false)),
         _ => None,
     }
 }
@@ -131,5 +133,16 @@ mod tests {
         assert!(!compatible("Am", "9A"));
         assert!(!compatible("13A", "13A"));
         assert!(!compatible("0B", "0B"));
+    }
+
+    #[test]
+    fn keys_ending_in_a_multibyte_character_are_not_camelot_and_do_not_panic() {
+        for k in ["F♯", "9♭", "♯", "é", "9é", "", " ", "Ab♭", "日本語"] {
+            assert_eq!(relation(k, "9A"), Relation::None, "{k:?}");
+            assert_eq!(relation("9A", k), Relation::None, "{k:?}");
+            assert!(!compatible(k, "9A"), "{k:?}");
+        }
+        assert_eq!(relation("9A", "9A"), Relation::Ok, "plain keys still work");
+        assert_eq!(relation(" 9a ", "9A"), Relation::Ok);
     }
 }

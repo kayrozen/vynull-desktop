@@ -93,4 +93,19 @@ mod tests {
         assert_eq!(split_host_port("host:abc"), None);
         assert_eq!(split_host_port(""), None);
     }
+
+    #[test]
+    fn the_host_of_a_base_url_keeps_ipv6_literals_whole() {
+        // The connection banner reads the host out of `http://host:port`.
+        let host = |base: &str| split_host_port(base).map(|(h, _)| h).unwrap();
+        assert_eq!(host("http://[fd00::1]:9443"), "[fd00::1]");
+        assert!(is_private_host(&host("http://[fd00::1]:9443")));
+        assert!(is_private_host(&host("http://[fe80::2]:9443")));
+        assert!(
+            !is_private_host(&host("http://[2001:db8::1]:9443")),
+            "a public address still warns"
+        );
+        assert_eq!(host("http://192.168.1.5:9443"), "192.168.1.5");
+        assert_eq!(host("http://studio.local:9443"), "studio.local");
+    }
 }

@@ -196,6 +196,8 @@ const longGenre = await page.evaluate(() => { const r = [...document.querySelect
 ok('a very long genre is clipped with an ellipsis inside its column', !!longGenre && longGenre.overflow === 'hidden' && longGenre.ellipsis === 'ellipsis' && longGenre.clipped && longGenre.gright <= longGenre.nleft, JSON.stringify(longGenre));
 ok('and its full text is in the tooltip', !!longGenre && longGenre.title);
 
+// ---- a key that is not Camelot (and ends in a multi-byte character) must not take the list down
+ok('a track whose key is "F♯" is listed, untinted, and the list still works', await page.evaluate(() => { const r = [...document.querySelectorAll('.lib .rw')].find((x) => x.querySelector('.c-k .key')?.textContent.trim() === 'F♯'); return !!r && r.querySelector('.c-k .key').className === 'key'; }));
 // ---- artwork and row waveforms
 await side('COLLECTION');
 await until(() => page.evaluate(() => document.querySelectorAll('.lib .rw .c-a img').length > 0));

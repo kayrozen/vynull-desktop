@@ -10,6 +10,8 @@ pub use audio::NativeAudio;
 #[cfg(target_arch = "wasm32")]
 pub use audio::WebAudio;
 pub use audio::{AudioPlayer, AudioState, FakeAudio, PlayStatus};
+#[cfg(not(target_arch = "wasm32"))]
+pub use events::state_stream_with;
 pub use events::{state_stream, StreamItem};
 #[cfg(not(target_arch = "wasm32"))]
 pub use store::FileStore;

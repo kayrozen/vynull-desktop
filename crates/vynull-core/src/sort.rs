@@ -108,14 +108,24 @@ impl Sort {
         if self.keys.is_empty() {
             return;
         }
-        idx.sort_by(|&a, &b| {
-            for k in &self.keys {
-                let (ta, tb) = (&tracks[a], &tracks[b]);
-                let o = match (value(k.col, ta), value(k.col, tb)) {
+        // Each track's keys are worked out once, not on every comparison (the title and artist
+        // keys fold and allocate): about n log n comparisons would otherwise redo that work.
+        let mut keyed: Vec<(usize, Vec<Value>)> = idx
+            .iter()
+            .map(|&i| {
+                (
+                    i,
+                    self.keys.iter().map(|k| value(k.col, &tracks[i])).collect(),
+                )
+            })
+            .collect();
+        keyed.sort_by(|(_, a), (_, b)| {
+            for (k, (x, y)) in self.keys.iter().zip(a.iter().zip(b.iter())) {
+                let o = match (x, y) {
                     (Value::Empty, Value::Empty) => Ordering::Equal,
                     (Value::Empty, _) => return Ordering::Greater,
                     (_, Value::Empty) => return Ordering::Less,
-                    (x, y) => x.cmp(&y),
+                    (x, y) => x.cmp(y),
                 };
                 let o = if k.desc { o.reverse() } else { o };
                 if o != Ordering::Equal {
@@ -124,6 +134,9 @@ impl Sort {
             }
             Ordering::Equal
         });
+        for (slot, (i, _)) in idx.iter_mut().zip(keyed) {
+            *slot = i;
+        }
     }
 }
 
@@ -275,5 +288,43 @@ mod tests {
         let mut s = Sort::default();
         s.click(Col::Track);
         assert_eq!(ids(&tracks, &s), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn a_big_sort_is_stable_and_matches_the_one_key_order() {
+        // 4,000 tracks, many ties on genre: ties must keep the incoming order, then BPM breaks them.
+        let tracks: Vec<TrackInfo> = (0..4000)
+            .map(|i| {
+                t(
+                    i,
+                    &format!("title {}", i % 97),
+                    ["House", "Techno", "", "Dub"][(i % 4) as usize],
+                    (100 + i % 60) as f64,
+                    "8A",
+                )
+            })
+            .collect();
+        let mut s = Sort::default();
+        s.click(Col::Genre);
+        let ids = ids(&tracks, &s);
+        assert_eq!(ids.len(), 4000);
+        let genre = |id: i64| tracks[id as usize].genre.clone();
+        // grouped by genre, empty last
+        let groups: Vec<String> = ids.iter().map(|&i| genre(i)).collect();
+        let first_empty = groups.iter().position(|g| g.is_empty()).unwrap();
+        assert!(
+            groups[first_empty..].iter().all(|g| g.is_empty()),
+            "empty genres are all last"
+        );
+        assert!(
+            groups[..first_empty].windows(2).all(|w| w[0] <= w[1]),
+            "the others are in order"
+        );
+        assert_eq!(groups.last().unwrap(), "");
+        // stability: within one genre the ids are still ascending
+        for g in ["Dub", "House", "Techno", ""] {
+            let within: Vec<i64> = ids.iter().copied().filter(|&i| genre(i) == g).collect();
+            assert!(within.windows(2).all(|w| w[0] < w[1]), "{g}");
+        }
     }
 }

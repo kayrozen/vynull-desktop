@@ -6,6 +6,7 @@ mod decode;
 mod engine;
 
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample};
@@ -105,7 +106,7 @@ impl AudioPlayer for NativeAudio {
     }
 
     fn pause(&self) {
-        lock(&self.engine).playing = false;
+        lock(&self.engine).pause();
     }
 
     fn seek(&self, secs: f64) {
@@ -141,7 +142,18 @@ impl AudioPlayer for NativeAudio {
 }
 
 fn fetch(url: &str) -> Result<Vec<u8>, String> {
-    let resp = reqwest::blocking::get(url).map_err(|e| format!("cannot fetch the audio: {e}"))?;
+    // The blocking client's default total timeout is 30 s and covers the whole body, which a long
+    // or transcoded track (tens of MB) over a slow link can exceed. Ten minutes is generous for any
+    // track and still ends a download that stalls (the blocking client has no per-read timeout).
+    let http = reqwest::blocking::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| format!("cannot fetch the audio: {e}"))?;
+    let resp = http
+        .get(url)
+        .send()
+        .map_err(|e| format!("cannot fetch the audio: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!(
             "the daemon answered {} for the audio",

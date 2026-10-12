@@ -36,6 +36,10 @@ pub struct Engine {
     pub playing: bool,
     pub ended: bool,
     pub volume: f32,
+    /// A seek asked for while the track was still loading, applied once it is ready.
+    pending_seek: Option<f64>,
+    /// A play asked for while the track was still loading.
+    pending_play: bool,
     out_rate: u32,
     /// Output frames rendered so far: the audio clock the clicks are scheduled on.
     clock: u64,
@@ -54,6 +58,8 @@ impl Engine {
             playing: false,
             ended: false,
             volume: 1.0,
+            pending_seek: None,
+            pending_play: false,
             out_rate: out_rate.max(1),
             clock: 0,
             clicks: Vec::new(),
@@ -68,6 +74,8 @@ impl Engine {
         self.pos = 0.0;
         self.playing = false;
         self.ended = false;
+        self.pending_seek = None;
+        self.pending_play = false;
         self.clicks.clear();
         self.generation
     }
@@ -77,6 +85,18 @@ impl Engine {
         self.channels = channels.max(1);
         self.samples = samples;
         self.load = Load::Ready;
+        // What was asked for during the download happens now, in the order it was asked: seek, then play.
+        if let Some(secs) = self.pending_seek.take() {
+            self.seek(secs);
+        }
+        if std::mem::take(&mut self.pending_play) {
+            self.play();
+        }
+    }
+
+    pub fn pause(&mut self) {
+        self.playing = false;
+        self.pending_play = false;
     }
 
     pub fn frames(&self) -> usize {
@@ -88,10 +108,19 @@ impl Engine {
     }
 
     pub fn position_secs(&self) -> f64 {
-        self.pos / self.rate as f64
+        match (&self.load, self.pending_seek) {
+            // While loading, show where it will start so a screen does not jump back to 0:00.
+            (Load::Loading, Some(secs)) => secs,
+            _ => self.pos / self.rate as f64,
+        }
     }
 
     pub fn seek(&mut self, secs: f64) {
+        if self.load == Load::Loading {
+            // The length is not known yet, so a seek now would be clamped to 0: keep it for later.
+            self.pending_seek = Some(secs.max(0.0));
+            return;
+        }
         let max = self.frames() as f64;
         self.pos = (secs * self.rate as f64).clamp(0.0, max);
         if self.ended && self.pos < max {
@@ -100,6 +129,10 @@ impl Engine {
     }
 
     pub fn play(&mut self) {
+        if self.load == Load::Loading {
+            self.pending_play = true;
+            return;
+        }
         if self.load != Load::Ready {
             return;
         }
@@ -292,5 +325,68 @@ mod tests {
         assert!(!e.playing);
         assert_eq!(e.duration_secs(), None);
         assert!(g > 1);
+    }
+
+    #[test]
+    fn a_seek_and_a_play_asked_during_the_download_happen_when_it_ends() {
+        let mut e = Engine::new(44_100);
+        e.begin_load();
+        e.seek(1.5);
+        e.play();
+        assert_eq!(
+            e.position_secs(),
+            1.5,
+            "the screen shows where it will start"
+        );
+        assert!(!e.playing, "nothing plays before there is audio");
+        e.set_audio(44_100, 1, vec![0.0; 44_100 * 4]);
+        assert_eq!(e.load, Load::Ready);
+        assert!(
+            (e.position_secs() - 1.5).abs() < 1e-9,
+            "the seek was kept: {}",
+            e.position_secs()
+        );
+        assert!(e.playing, "and so was the play");
+    }
+
+    #[test]
+    fn a_seek_alone_does_not_start_playback() {
+        let mut e = Engine::new(44_100);
+        e.begin_load();
+        e.seek(2.0);
+        e.set_audio(44_100, 1, vec![0.0; 44_100 * 4]);
+        assert!((e.position_secs() - 2.0).abs() < 1e-9);
+        assert!(!e.playing);
+    }
+
+    #[test]
+    fn a_pause_during_the_download_cancels_the_play() {
+        let mut e = Engine::new(44_100);
+        e.begin_load();
+        e.play();
+        e.pause();
+        e.set_audio(44_100, 1, vec![0.0; 44_100]);
+        assert!(!e.playing);
+    }
+
+    #[test]
+    fn a_new_load_forgets_what_was_asked_of_the_old_one() {
+        let mut e = Engine::new(44_100);
+        e.begin_load();
+        e.seek(3.0);
+        e.play();
+        e.begin_load();
+        e.set_audio(44_100, 1, vec![0.0; 44_100 * 5]);
+        assert_eq!(e.position_secs(), 0.0);
+        assert!(!e.playing);
+    }
+
+    #[test]
+    fn a_seek_past_the_end_after_loading_is_still_clamped() {
+        let mut e = Engine::new(44_100);
+        e.begin_load();
+        e.seek(99.0);
+        e.set_audio(44_100, 1, vec![0.0; 44_100]);
+        assert!(e.position_secs() <= 1.0 + 1e-9, "{}", e.position_secs());
     }
 }

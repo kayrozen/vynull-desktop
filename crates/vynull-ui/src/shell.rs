@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use vynull_api::Client;
-use vynull_core::net::is_private_host;
+use vynull_core::net::{is_private_host, split_host_port};
 use vynull_core::route::{Page, Route};
 use vynull_platform::{time, AudioPlayer, Store, StoreExt};
 
@@ -278,12 +278,10 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
         });
     };
 
-    let host = base
-        .trim_start_matches("http://")
-        .split(':')
-        .next()
-        .unwrap_or("")
-        .to_string();
+    // `[fd00::1]:9443` has colons in the host itself, so split it as `host:port` does elsewhere.
+    let host = split_host_port(&base)
+        .map(|(h, _)| h)
+        .unwrap_or_else(|| base.trim_start_matches("http://").to_string());
     rsx! {
         if !is_private_host(&host) {
             div { class: "banner",

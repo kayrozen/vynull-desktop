@@ -71,12 +71,32 @@ impl Suggestion {
             return (self.value.clone(), String::new(), String::new());
         };
         let start = folded[..byte].chars().count();
-        let len = q.chars().count();
+        let end = start + q.chars().count();
         let chars: Vec<char> = self.value.chars().collect();
+        // Folding can change the number of characters (a Hangul syllable becomes two or three
+        // jamo, an accent is dropped), so the offsets in the folded text are turned back into
+        // positions in the original by folding it one character at a time.
+        let mut at = Vec::with_capacity(chars.len() + 1);
+        let mut n = 0usize;
+        for c in &chars {
+            at.push(n);
+            n += fold(&c.to_string()).chars().count();
+        }
+        at.push(n);
+        let from = at
+            .iter()
+            .rposition(|&x| x <= start)
+            .unwrap_or(0)
+            .min(chars.len());
+        let to = at
+            .iter()
+            .position(|&x| x >= end)
+            .unwrap_or(chars.len())
+            .clamp(from, chars.len());
         (
-            chars[..start].iter().collect(),
-            chars[start..start + len].iter().collect(),
-            chars[start + len..].iter().collect(),
+            chars[..from].iter().collect(),
+            chars[from..to].iter().collect(),
+            chars[to..].iter().collect(),
         )
     }
 }
@@ -103,43 +123,53 @@ pub struct SearchIndex {
     rows: Vec<Row>,
 }
 
+fn make_row(t: &TrackInfo) -> Row {
+    let tags: Vec<String> = t.tags.iter().map(|g| fold(g)).collect();
+    let hay = fold(
+        &[
+            t.title.as_str(),
+            &t.artist,
+            &t.album,
+            &t.label,
+            &t.remixer,
+            &t.original_artist,
+            &t.mix_name,
+            &t.genre,
+            &t.key,
+            &bpm_label(t.bpm),
+            &t.comment,
+            &t.tags.join(" "),
+        ]
+        .join(" | "),
+    );
+    Row {
+        title: fold(&t.title),
+        artist: fold(&t.artist),
+        album: fold(&t.album),
+        label: fold(&t.label),
+        remixer: fold(&t.remixer),
+        genre: fold(&t.genre),
+        key: fold(&t.key),
+        comment: fold(&t.comment),
+        tags,
+        hay,
+    }
+}
+
 impl SearchIndex {
     pub fn new(tracks: &[TrackInfo]) -> Self {
-        let rows = tracks
-            .iter()
-            .map(|t| {
-                let tags: Vec<String> = t.tags.iter().map(|g| fold(g)).collect();
-                let hay = fold(
-                    &[
-                        t.title.as_str(),
-                        &t.artist,
-                        &t.album,
-                        &t.label,
-                        &t.remixer,
-                        &t.original_artist,
-                        &t.mix_name,
-                        &t.genre,
-                        &t.key,
-                        &bpm_label(t.bpm),
-                        &t.comment,
-                        &t.tags.join(" "),
-                    ]
-                    .join(" | "),
-                );
-                Row {
-                    title: fold(&t.title),
-                    artist: fold(&t.artist),
-                    album: fold(&t.album),
-                    label: fold(&t.label),
-                    remixer: fold(&t.remixer),
-                    genre: fold(&t.genre),
-                    key: fold(&t.key),
-                    comment: fold(&t.comment),
-                    tags,
-                    hay,
-                }
-            })
-            .collect();
+        Self {
+            rows: tracks.iter().map(make_row).collect(),
+        }
+    }
+
+    /// The index with row `i` redone for the edited track `t`. Only that row is folded again;
+    /// the others are copied, which is far cheaper than folding every field of every track.
+    pub fn with_row(&self, i: usize, t: &TrackInfo) -> Self {
+        let mut rows = self.rows.clone();
+        if let Some(slot) = rows.get_mut(i) {
+            *slot = make_row(t);
+        }
         Self { rows }
     }
 
@@ -415,6 +445,83 @@ mod tests {
             s.highlight("zzz"),
             ("Café Crème".into(), String::new(), String::new())
         );
+    }
+
+    #[test]
+    fn highlight_survives_text_that_folds_to_a_different_length() {
+        let sug = |v: &str| Suggestion {
+            field: Field::Track,
+            value: v.into(),
+            count: 1,
+        };
+        // Hangul syllables fold to two or three jamo each.
+        assert_eq!(
+            sug("안녕").highlight("녕"),
+            ("안".into(), "녕".into(), String::new())
+        );
+        assert_eq!(
+            sug("안녕").highlight("안"),
+            (String::new(), "안".into(), "녕".into())
+        );
+        // Already decomposed (e + combining acute): the accent folds away, the letter stays whole.
+        let decomposed = "Cafe\u{301} Creme";
+        let (a, m, b) = sug(decomposed).highlight("cafe");
+        assert_eq!(
+            format!("{a}{m}{b}"),
+            decomposed,
+            "nothing is lost or duplicated"
+        );
+        assert!(m.starts_with("Cafe"), "{m:?}");
+        // Whatever the text, it never panics and always reassembles.
+        for v in [
+            "ﬁne",
+            "İstanbul",
+            "ǅ",
+            "한국어 노래",
+            "e\u{301}\u{301}",
+            "ß",
+        ] {
+            for q in ["n", "한", "ss", "i", "e", "노래", "zz"] {
+                let (a, m, b) = sug(v).highlight(q);
+                assert_eq!(format!("{a}{m}{b}"), v, "{v:?} / {q:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn redoing_one_row_gives_the_same_index_as_building_it_again() {
+        let mk = |id: i64, title: &str, comment: &str| -> TrackInfo {
+            serde_json::from_value(serde_json::json!({"id": id, "title": title, "comment": comment, "bpm": 120.0, "key": "8A"})).unwrap()
+        };
+        let mut tracks = vec![
+            mk(1, "Alpha", "x"),
+            mk(2, "Bravo", "y"),
+            mk(3, "Charlie", "z"),
+        ];
+        let before = SearchIndex::new(&tracks);
+        tracks[1] = mk(2, "Bravo", "edited comment");
+        let fast = before.with_row(1, &tracks[1]);
+        let full = SearchIndex::new(&tracks);
+        for q in [
+            "edited",
+            "bravo",
+            "alpha",
+            "y",
+            "comment edited",
+            "charlie",
+            "zzz",
+            "",
+        ] {
+            assert_eq!(fast.filter(q), full.filter(q), "{q:?}");
+        }
+        assert_eq!(fast.len(), 3);
+        assert_eq!(
+            before.filter("edited"),
+            Vec::<usize>::new(),
+            "the old index is not touched"
+        );
+        // an index past the end is ignored rather than a panic
+        assert_eq!(before.with_row(9, &tracks[0]).len(), 3);
     }
 
     #[test]

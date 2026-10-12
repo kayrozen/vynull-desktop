@@ -38,7 +38,7 @@ impl LibState {
         let mut tracks = (*self.tracks).clone();
         tracks[i] = t;
         LibState {
-            index: Rc::new(SearchIndex::new(&tracks)),
+            index: Rc::new(self.index.with_row(i, &tracks[i])),
             tracks: Rc::new(tracks),
             ..self.clone()
         }
