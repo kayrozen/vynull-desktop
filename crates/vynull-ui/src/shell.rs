@@ -299,7 +299,7 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
             Tab::Tags => rsx! { crate::tags::Tags { lib } },
             Tab::Settings => rsx! { crate::settings::Settings { base: base.clone(), goto: go } },
             Tab::Diag => rsx! { crate::diag::Diag { linked: (feed.polled)().linked } },
-            Tab::Overlay => rsx! { crate::overlay::OverlayScreen { feed, base: base.clone() } },
+            Tab::Overlay => rsx! { crate::overlay::OverlayScreen { base: base.clone() } },
         }
     }
 }

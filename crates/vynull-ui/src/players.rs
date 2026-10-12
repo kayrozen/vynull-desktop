@@ -110,7 +110,7 @@ pub fn Players(feed: Feed, base: String, goto: EventHandler<Tab>) -> Element {
                     span { class: "sp" }
                     a { class: "chip mono", href: "{base}/overlay", target: "_blank", "/overlay" }
                 }
-                OverlayPreview { feed, base: base.clone() }
+                crate::overlay::OverlayFrame { base: base.clone(), id: "ovplayers" }
                 span { class: "mut",
                     "Add this page as a browser source in the streaming software. The overlay shows the loudest deck."
                 }
@@ -356,35 +356,6 @@ fn HistoryRow(item: HistoryItem) -> Element {
             span { class: "ttl", "{item.title}" }
             span { class: "mono mut", "{item.bpm:.1}" }
             span { class: "mono mut", "{at}" }
-        }
-    }
-}
-
-#[component]
-fn OverlayPreview(feed: Feed, base: String) -> Element {
-    let np = (feed.live)().nowplaying;
-    let client = use_context::<ClientCtx>().0;
-    let art = if np.artwork_url.is_empty() {
-        None
-    } else {
-        Some(client.url(&np.artwork_url))
-    };
-    let _ = base;
-    rsx! {
-        div { class: "ovc",
-            div { class: "art", style: "{art_style(np.device_number)}",
-                if let Some(url) = art { img { src: "{url}", alt: "" } }
-            }
-            div { style: "min-width:0",
-                if np.playing {
-                    div { class: "ttl", "{np.title}" }
-                    div { class: "mut", "{np.artist}" }
-                    div { class: "mono", style: "margin-top:8px;color:#FFC15A", "{np.bpm:.1} BPM  {np.key}" }
-                } else {
-                    div { class: "ttl", "Nothing playing" }
-                    div { class: "mut", "The overlay is empty until a deck is on air." }
-                }
-            }
         }
     }
 }

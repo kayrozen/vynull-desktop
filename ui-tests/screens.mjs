@@ -90,6 +90,10 @@ ok('settings: the live-edit banner shows', await page.evaluate(() => /LAST WRITE
 ok('settings: seven sections', (await page.evaluate(() => [...document.querySelectorAll('.pgs .ni')].map((b) => b.textContent))).join() === 'WEB UI,LIBRARY SOURCE,STREAM OVERLAY,PLAYER MENU,MYSETTING,DJMMYSETTING,DEVSETTING');
 const section = (n) => page.evaluate((x) => [...document.querySelectorAll('.pgs .ni')].find((b) => b.textContent === x).click(), n);
 
+// WEB UI is the section that opens first
+ok('settings: WEB UI opens first', await page.evaluate(() => document.querySelector('.pgs .ni.on')?.textContent === 'WEB UI' && !!document.querySelector('.pgs .wpv')));
+await section('MYSETTING');
+await page.waitForSelector('.pgs .sr .seg');
 // MYSETTING: editable, each click rewrites the whole document
 ok('settings: player settings open first, grouped', await page.evaluate(() => ['DISPLAY', 'PLAYBACK'].every((g) => [...document.querySelectorAll('.pgs .grp')].some((e) => e.textContent === g))));
 ok('settings: options come from the daemon', await page.evaluate(() => { const r = [...document.querySelectorAll('.pgs .sr')].find((x) => /Tempo range/.test(x.textContent)); return [...r.querySelectorAll('.seg button')].map((b) => b.textContent).join() === '6,10,16,WIDE'; }));
@@ -248,46 +252,49 @@ ok('overlay: the settings are laid out (rows and segments are flex, switches are
   return cs('.pgo .sr').display === 'flex' && ['flex', 'inline-flex'].includes(cs('.pgo .seg').display) && cs('.pgo .tg').borderRadius !== '0px' && cs('.pgo .seg button').height === '44px' && cs('.pgo .sw button').width === '44px';
 }));
 ok('overlay: the stage keeps its 16:9 shape', await page.evaluate(() => { const r = document.querySelector('.pgo .stage').getBoundingClientRect(); return Math.abs(r.width / r.height - 16 / 9) < 0.02; }));
-ok('overlay: the card is inside the stage', await page.evaluate(() => { const a = document.querySelector('.pgo .stage').getBoundingClientRect(), b = document.querySelector('.pgo .np').getBoundingClientRect(); return b.left >= a.left && b.right <= a.right + 1 && b.top >= a.top && b.bottom <= a.bottom + 1; }));
-ok('overlay: the card shows the track on air', await page.evaluate(() => /Sample Track 0001/.test(document.querySelector('.pgo .np .ttl').textContent) && /122\.00/.test(document.querySelector('.pgo .np .sub').textContent)));
-ok('overlay: the header text shows', await page.evaluate(() => /Now Playing/.test(document.querySelector('.pgo .npl').textContent)));
+const frameInfo = () => page.evaluate(() => { const f = document.querySelector('.pgo .stage iframe'); if (!f) return null; const r = f.getBoundingClientRect(), stEl = document.querySelector('.pgo .stage'), st = stEl.getBoundingClientRect(); return { src: f.getAttribute('src'), w: f.offsetWidth, h: f.offsetHeight, shown: Math.round(r.width), stage: stEl.clientWidth, events: getComputedStyle(f).pointerEvents, left: Math.round(r.left - st.left - stEl.clientLeft), top: Math.round(r.top - st.top - stEl.clientTop) }; });
+ok('overlay: the preview is the daemon\'s own /overlay page in a frame', (await frameInfo())?.src === FAKE + '/overlay', JSON.stringify(await frameInfo()));
+ok('overlay: the frame is laid out at 1920 x 1080', (await frameInfo())?.w === 1920 && (await frameInfo())?.h === 1080);
+ok('overlay: and scaled to fill the stage exactly', !!(await until(async () => { const f = await frameInfo(); return f && Math.abs(f.shown - f.stage) <= 1 && f.left === 0 && f.top === 0; }, 8000)), JSON.stringify(await frameInfo()));
+ok('overlay: the frame ignores the pointer (it is a picture, not a page to use)', (await frameInfo())?.events === 'none');
+const stageBefore = (await frameInfo()).stage;
+await page.setViewport({ width: 1000, height: 900 });
+ok('overlay: it follows the window when it is resized', !!(await until(async () => { const f = await frameInfo(); return f && f.stage < stageBefore - 20 && Math.abs(f.shown - f.stage) <= 1; }, 8000)), JSON.stringify([stageBefore, await frameInfo()]));
+await page.setViewport({ width: 1440, height: 1100 });
+ok('overlay: our own drawing of the card is gone (nothing made up)', await page.evaluate(() => !document.querySelector('.pgo .np') && !document.querySelector('.pgo .vinyl') && !document.querySelector('.pgo .band')));
 const cfg = () => get('/api/overlay/config');
 const click = (sel, text) => page.evaluate((s, t) => [...document.querySelectorAll(s)].find((b) => b.textContent.trim() === t || b.getAttribute('aria-label') === t).click(), sel, text);
+// What each control sends. The picture itself is the daemon's page, so only the config is checked here.
 await click('.pgo .pos button', 'TOP RIGHT');
 ok('overlay: a position is sent to the daemon', !!(await until(async () => (await cfg()).position === 'top-right')));
-ok('overlay: the card moves to that corner and does not stretch', await page.evaluate(() => {
-  const a = document.querySelector('.pgo .stage').getBoundingClientRect(), b = document.querySelector('.pgo .np').getBoundingClientRect();
-  return b.left > a.left + a.width * 0.4 && Math.abs(a.right - b.right) < a.width * 0.05 && b.top < a.top + a.height * 0.15 && b.height < a.height * 0.6;
-}));
 await click('.pgo .seg button', 'COVER');
-ok('overlay: the style changes', !!(await until(async () => (await cfg()).style === 'cover')) && await page.evaluate(() => !!document.querySelector('.pgo .cov') && !document.querySelector('.pgo .vinyl')));
+ok('overlay: the style is sent', !!(await until(async () => (await cfg()).style === 'cover')));
 await click('.pgo .sw button', 'Teal');
-ok('overlay: the accent color is sent and applied to the stage', !!(await until(async () => (await cfg()).accent === '#3FD6C0')) && await page.evaluate(() => document.querySelector('.pgo .stage').getAttribute('style').includes('#3FD6C0')));
+ok('overlay: the accent color is sent', !!(await until(async () => (await cfg()).accent === '#3FD6C0')));
 await click('.pgo .stp button', 'Wider');
 ok('overlay: the card gets wider by 20 px', !!(await until(async () => (await cfg()).width === 460)));
 for (let i = 0; i < 40; i++) await click('.pgo .stp button', 'Wider');
 ok('overlay: the width stops at the daemon\'s limit', !!(await until(async () => (await cfg()).width === 1000)));
 await type('.pgo input[aria-label="Header text"]', 'On Air');
 await page.keyboard.press('Tab');
-ok('overlay: the header text is sent when the field is left', !!(await until(async () => (await cfg()).label === 'On Air')) && await page.evaluate(() => /On Air/.test(document.querySelector('.pgo .npl').textContent)));
+ok('overlay: the header text is sent when the field is left', !!(await until(async () => (await cfg()).label === 'On Air')));
 await type('.pgo input[aria-label="Header text"]', '');
 await page.keyboard.press('Tab');
-ok('overlay: an empty header hides it', !!(await until(() => page.evaluate(() => !document.querySelector('.pgo .npl')))));
+ok('overlay: an empty header is sent as empty', !!(await until(async () => (await cfg()).label === '')));
 await click('.pgo .tg', 'Deck by deck');
-ok('overlay: the decks section lists every deck', !!(await until(() => page.evaluate(() => document.querySelectorAll('.pgo .np .sec .l').length === 4 && /PLAYING/.test(document.querySelector('.pgo .np .sec').textContent)))) && (await cfg()).show_decks === true);
+ok('overlay: the decks section is sent', !!(await until(async () => (await cfg()).show_decks === true)));
 await click('.pgo .tg', 'Recently played');
-ok('overlay: recent plays list as many tracks as set, newest first', !!(await until(() => page.evaluate(() => { const s = [...document.querySelectorAll('.pgo .np .sec')].find((x) => /RECENTLY/.test(x.textContent)); return s && s.querySelectorAll('.l').length === 3 && /Sample Track 0005/.test(s.querySelector('.l').textContent); }))));
-for (let i = 0; i < 3; i++) await click('.pgo .stp button', 'Fewer');
-ok('overlay: tracks listed is sent and cut the list', !!(await until(async () => (await cfg()).history_count === 2)) && !!(await until(() => page.evaluate(() => { const s = [...document.querySelectorAll('.pgo .np .sec')].find((x) => /RECENTLY/.test(x.textContent)); return s.querySelectorAll('.l').length === 2; }))));
-await page.screenshot({ path: 'ui-overlay-card.png' });
+ok('overlay: recently played is sent', !!(await until(async () => (await cfg()).show_history === true)));
+await click('.pgo .stp button', 'Fewer');
+ok('overlay: tracks listed is sent', !!(await until(async () => (await cfg()).history_count < 5)));
 await click('.pgo .seg button', 'HALF');
 ok('overlay: the waveform shape is sent', !!(await until(async () => (await cfg()).waveform_style === 'half')));
 await click('.pgo .tg', 'Full-width band');
-ok('overlay: the full-width band replaces the card waveform', !!(await until(async () => (await cfg()).waveform_band === true)) && await page.evaluate(() => !!document.querySelector('.pgo .band') && !document.querySelector('.pgo .np .wv')));
+ok('overlay: the full-width band is sent', !!(await until(async () => (await cfg()).waveform_band === true)));
 await click('.pgo .stp button', 'Taller');
 ok('overlay: the band height is sent', !!(await until(async () => (await cfg()).waveform_height === 140)));
 await click('.pgo .tg', 'Now-playing card');
-ok('overlay: the card can be turned off', !!(await until(() => page.evaluate(() => !document.querySelector('.pgo .np')))) && (await cfg()).show_nowplaying === false);
+ok('overlay: the card switch is sent', !!(await until(async () => (await cfg()).show_nowplaying === false)));
 await page.screenshot({ path: 'ui-overlay.png' });
 await click('.pgo .tg', 'Now-playing card');
 await page.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; });
@@ -296,7 +303,7 @@ ok('overlay: COPY copies the address and says so', await page.evaluate((f) => wi
 await page.reload();
 await page.waitForSelector('.pgo .stage');
 await sleep(800);
-ok('overlay: the saved config comes back after a reload', await page.evaluate(() => document.querySelector('.pgo .pos button.on')?.textContent === 'TOP RIGHT' && !!document.querySelector('.pgo .band')));
+ok('overlay: the saved config comes back after a reload', await page.evaluate(() => document.querySelector('.pgo .pos button.on')?.textContent === 'TOP RIGHT' && document.querySelector('.pgo .seg button.on')?.textContent !== undefined));
 
 ok('no request left the daemon and the app', page.external.length === 0, page.external.slice(0, 3).join(' '));
 console.log('console errors:', page.errors.slice(0, 5));

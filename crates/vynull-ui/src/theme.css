@@ -70,8 +70,6 @@ a{color:inherit;text-decoration:none}
 .row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line3)}
 .row:last-child{border-bottom:0}
 .row .ttl{font-size:15px;flex:1}
-.ovc{display:flex;gap:14px;align-items:center;background:repeating-conic-gradient(#0B0F14 0 25%,#10151C 0 50%) 0 0/16px 16px;border:1px dashed var(--line2);border-radius:10px;padding:16px}
-.ovc .art{width:88px;height:88px}
 .sh2{font-family:Cousine,monospace;font-size:13px;letter-spacing:.08em;color:var(--mut)}
 @media (max-width:760px){.pg{padding:16px}.top{padding:8px 16px}.kv4{grid-template-columns:repeat(2,minmax(0,1fr))}.big{font-size:24px}}
 /* additions for the real client */

@@ -5,20 +5,53 @@
 use std::time::Duration;
 
 use dioxus::prelude::*;
-use vynull_api::{HistoryItem, OverlayConfig, PlayerInfo};
-use vynull_core::{overlay, waveform};
+use vynull_api::OverlayConfig;
+use vynull_core::overlay;
 use vynull_platform::time;
 
-use crate::live::Feed;
+use crate::dom;
 use crate::shell::ClientCtx;
 
+/// The daemon's own `/overlay` page, shown at the 1920 x 1080 it is made for and scaled to fit.
+/// Its look is the daemon's, not ours, so what is shown is what a streaming program shows.
 #[component]
-pub fn OverlayScreen(feed: Feed, base: String) -> Element {
+pub fn OverlayFrame(base: String, id: String) -> Element {
+    let mut scale = use_signal(|| 0.0_f64);
+    let sel = format!("#{id}");
+    use_future(move || {
+        let sel = sel.clone();
+        async move {
+            loop {
+                if let Some((_, w)) = dom::left_and_width(&sel).await {
+                    let next = (w / 1920.0).max(0.0);
+                    if (next - *scale.peek()).abs() > 0.0005 {
+                        scale.set(next);
+                    }
+                }
+                time::sleep(Duration::from_millis(400)).await;
+            }
+        }
+    });
+    let src = overlay::url(&base);
+    rsx! {
+        div { class: "ovf", id: "{id}",
+            iframe {
+                class: "ovf-in",
+                src: "{src}",
+                title: "Stream overlay, as the daemon draws it",
+                tabindex: "-1",
+                style: "transform:scale({scale})",
+            }
+        }
+    }
+}
+
+#[component]
+pub fn OverlayScreen(base: String) -> Element {
     let client = use_context::<ClientCtx>().0;
     let mut cfg = use_signal(|| None::<OverlayConfig>);
     let mut error = use_signal(String::new);
     let mut copied = use_signal(|| false);
-    let mut history = use_signal(Vec::<HistoryItem>::new);
     // Counts saves, so that a slow answer to an old click cannot undo a newer one.
     let mut latest = use_signal(|| 0u64);
     // The header field keeps what is being typed: this screen redraws several times a second
@@ -32,18 +65,6 @@ pub fn OverlayScreen(feed: Feed, base: String) -> Element {
             match c.overlay_config().await {
                 Ok(v) => cfg.set(Some(v)),
                 Err(e) => error.set(format!("Could not read the overlay settings: {e}")),
-            }
-        }
-    });
-    let c = client.clone();
-    use_future(move || {
-        let c = c.clone();
-        async move {
-            loop {
-                if let Ok(h) = c.history().await {
-                    history.set(h);
-                }
-                time::sleep(Duration::from_secs(5)).await;
             }
         }
     });
@@ -98,39 +119,7 @@ pub fn OverlayScreen(feed: Feed, base: String) -> Element {
         };
     };
 
-    let live = (feed.live)();
-    let np = live.nowplaying.clone();
     let full = c.waveform_style == "full";
-    let values: Vec<f64> = waveform::demo_entries(400)
-        .iter()
-        .map(|e| e.bass as f64 / 255.0)
-        .collect();
-    let wave = overlay::wave_path(&values, full);
-    let label = c.label.trim().to_string();
-    let accent = if c.accent.is_empty() {
-        "#FFC15A".to_string()
-    } else {
-        c.accent.clone()
-    };
-    let stage_style = format!("--ac:{accent}");
-    // Newest first, as many as the card lists.
-    let hist_view: Vec<(usize, String, String)> = {
-        let h = history.read();
-        let mut v: Vec<&HistoryItem> = h.iter().collect();
-        v.sort_by(|a, b| b.started_at.cmp(&a.started_at));
-        v.into_iter()
-            .take(c.history_count.max(1) as usize)
-            .enumerate()
-            .map(|(i, h)| {
-                (
-                    i + 1,
-                    h.title.clone(),
-                    h.started_at.get(11..16).unwrap_or("").to_string(),
-                )
-            })
-            .collect()
-    };
-    let deck_rows: Vec<(i64, String, String)> = live.players.iter().map(deck_row).collect();
 
     // Reads the current config when called, so it holds no borrow and can sit in every handler.
     let set = move |f: fn(&mut OverlayConfig)| {
@@ -166,64 +155,9 @@ pub fn OverlayScreen(feed: Feed, base: String) -> Element {
                 if !error().is_empty() { div { class: "errbox", "{error()}" } }
                 div { class: "lay",
                     div { class: "stw",
-                        div { class: "stage", style: "{stage_style}",
+                        div { class: "stage",
                             span { class: "stg-l", "1920 x 1080  TRANSPARENT BACKGROUND" }
-                            if c.waveform_band {
-                                svg { class: "band", style: "{overlay::band_style(&c)}", view_box: "0 0 400 100", preserve_aspect_ratio: "none", "aria-hidden": "true",
-                                    defs { clipPath { id: "cb1", rect { x: "0", y: "0", width: "150", height: "100" } } }
-                                    path { d: "{wave}", fill: "#fff", opacity: ".22" }
-                                    path { d: "{wave}", fill: "var(--ac)", clip_path: "url(#cb1)" }
-                                }
-                            }
-                            if c.show_nowplaying {
-                                div { class: "np", style: "{overlay::card_style(&c)}",
-                                    div { class: "row",
-                                        div { class: "deck",
-                                            if c.style == "cover" {
-                                                div { class: "cov", style: "background:linear-gradient(135deg,{accent},#2A313C 70%)" }
-                                            } else {
-                                                div { class: "vinyl",
-                                                    div { class: "lbl", style: "background:linear-gradient(135deg,{accent},#2A313C 70%)" }
-                                                    div { class: "hole" }
-                                                }
-                                            }
-                                        }
-                                        div { class: "meta",
-                                            if !label.is_empty() {
-                                                div { class: "npl",
-                                                    span { class: "eq", i { style: "height:60%" } i { style: "height:100%" } i { style: "height:40%" } i { style: "height:80%" } }
-                                                    span { "{label}" }
-                                                }
-                                            }
-                                            div { class: "ttl", if np.playing { "{np.title}" } else { "Nothing playing" } }
-                                            div { class: "art", if np.playing { "{np.artist}" } else { "The card is empty until a deck is on air." } }
-                                            if c.show_meta && np.playing {
-                                                div { class: "sub", b { "{np.bpm:.2}" } " BPM   " b { "{np.key}" } " KEY" }
-                                            }
-                                        }
-                                    }
-                                    if c.show_waveform && !c.waveform_band {
-                                        svg { class: "wv", view_box: "0 0 400 100", preserve_aspect_ratio: "none", "aria-hidden": "true",
-                                            defs { clipPath { id: "cb2", rect { x: "0", y: "0", width: "150", height: "100" } } }
-                                            path { d: "{wave}", fill: "#fff", opacity: ".22" }
-                                            path { d: "{wave}", fill: "var(--ac)", clip_path: "url(#cb2)" }
-                                        }
-                                    }
-                                    if c.show_decks {
-                                        div { class: "sec",
-                                            span { class: "h", "DECKS" }
-                                            for (n , t , s) in deck_rows.iter() { div { key: "{n}", class: "l", b { "{n}" } span { "{t}" } em { "{s}" } } }
-                                        }
-                                    }
-                                    if c.show_history {
-                                        div { class: "sec",
-                                            span { class: "h", "RECENTLY PLAYED" }
-                                            if hist_view.is_empty() { div { class: "l", span { "Nothing played yet." } } }
-                                            for (n , t , s) in hist_view.iter() { div { key: "{n}", class: "l", b { "{n}" } span { "{t}" } em { "{s}" } } }
-                                        }
-                                    }
-                                }
-                            }
+                            OverlayFrame { base: base.clone(), id: "ovstage" }
                         }
                     }
                     aside { class: "card cfg",
@@ -307,18 +241,4 @@ pub fn OverlayScreen(feed: Feed, base: String) -> Element {
             }
         }
     }
-}
-
-fn deck_row(p: &PlayerInfo) -> (i64, String, String) {
-    let title = if p.track_title.is_empty() {
-        "-".to_string()
-    } else {
-        p.track_title.clone()
-    };
-    let state = if p.play_state_name.is_empty() {
-        "EMPTY".to_string()
-    } else {
-        p.play_state_name.to_uppercase()
-    };
-    (p.device_number, title, state)
 }

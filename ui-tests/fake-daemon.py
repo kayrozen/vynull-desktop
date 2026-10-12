@@ -302,6 +302,14 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         p, q = u.path, parse_qs(u.query)
+        if p == "/overlay":
+            body = b"<!doctype html><title>overlay</title><body style='margin:0;background:transparent'><div id=card style='position:fixed;left:40px;bottom:40px;width:440px;height:120px;background:#222;color:#fff'>fake overlay page</div>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if p == "/__gets":
             return self.send(200, GETS)
         if p != "/api/events":

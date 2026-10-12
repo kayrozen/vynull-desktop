@@ -77,7 +77,7 @@ fn preset(name: &str) -> WaveColors {
 
 #[component]
 pub fn Settings(base: String, goto: EventHandler<Tab>) -> Element {
-    let mut section = use_signal(|| Section::My);
+    let mut section = use_signal(|| Section::Web);
     rsx! {
         div { class: "pgs",
             div { class: "note", "EDIT TO PUSH LIVE.  PLAYER CHANGES FLOW BACK AUTOMATICALLY.  LAST WRITE WINS." }

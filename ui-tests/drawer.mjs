@@ -340,6 +340,16 @@ ok('RGB: the zoom is drawn in per-column colors, not the three band shapes', rgb
 ok('RGB: so is the overview', rgb.ov.length >= 1, JSON.stringify(rgb.ov.slice(0, 3)));
 ok('RGB: every color is on the 3-bit scale of the format (multiples of 38)', [...rgb.zoom, ...rgb.ov].every((f) => f.match(/\d+/g).every((n) => Number(n) % 38 === 0 || Number(n) === 255)), JSON.stringify([...new Set([...rgb.zoom, ...rgb.ov])].slice(0, 6)));
 
+// ---- the Overlay tab shows the daemon's real /overlay page, not a drawing of it
+await page.evaluate(() => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes('OVERLAY')).click());
+await page.waitForSelector('.pgo .stage iframe', { timeout: 15000 });
+const overlayFrame = await until(async () => page.frames().find((f) => f !== page.mainFrame() && f.url().endsWith('/overlay')), 15000);
+ok('overlay: the frame loaded the real page from the daemon', !!overlayFrame, page.frames().map((f) => f.url()).join(' '));
+const real = overlayFrame ? await until(async () => overlayFrame.evaluate(() => ({ w: innerWidth, h: innerHeight, bg: getComputedStyle(document.body).backgroundColor, html: document.documentElement.outerHTML.length })).catch(() => null), 10000) : null;
+ok('overlay: that page sees a 1920 x 1080 window, as in OBS', !!real && real.w === 1920 && real.h === 1080, JSON.stringify(real));
+ok('overlay: and keeps its transparent background', !!real && /rgba\(0, 0, 0, 0\)|transparent/.test(real.bg), JSON.stringify(real));
+ok('overlay: the real page is what is on screen (scaled to the stage)', await page.evaluate(() => { const f = document.querySelector('.pgo .stage iframe').getBoundingClientRect(), st = document.querySelector('.pgo .stage'); return Math.abs(f.width - st.clientWidth) <= 1; }));
+
 console.log('console errors:', errs.slice(0, 5));
 await browser.close();
 process.exit(failed ? 1 : 0);
