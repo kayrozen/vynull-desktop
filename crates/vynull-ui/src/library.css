@@ -230,3 +230,11 @@
 .lib .dropline{position:absolute;left:0;right:0;height:3px;margin-top:-2px;background:#FFC15A;border-radius:2px;z-index:3;pointer-events:none;box-shadow:0 0 8px rgba(255,193,90,.7)}
 .lib .c-g,.lib .c-b,.lib .c-k,.lib .c-m{box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib .c-k .key{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box}
+.lib .src .ic{flex:none;width:18px;height:18px}
+.lib .src .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib .src .chev{width:14px;height:14px;margin-right:-4px;transition:transform .12s ease}
+.lib .src .chev.open{transform:rotate(90deg)}
+.lib .src .fold{color:var(--accent-text)}
+.lib .src .smart{color:var(--accent-text)}
+.lib .src.on .pl{color:var(--accent-text)}
+

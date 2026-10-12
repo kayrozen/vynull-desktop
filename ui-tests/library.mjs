@@ -33,7 +33,8 @@ ok('the whole library loads', (await count()).startsWith('1200 OF 1200'), await 
 const n0 = await rows();
 ok('the list is virtual', n0 > 10 && n0 < 60, `${n0} rows in the DOM`);
 ok('missing files are flagged', (await count()).includes('MISSING'));
-ok('the sidebar lists playlists as a tree', await page.evaluate(() => { const t = [...document.querySelectorAll('.side .src')].map((b) => b.textContent); return t.some((x) => /WARM-UP/.test(x)) && t.some((x) => /FOLDER\s+ARCHIVE/.test(x)) && t.some((x) => /SMART\s+DNB/.test(x)) && t.some((x) => /SUMMER SETS/.test(x)); }));
+ok('the sidebar lists playlists as a tree', await page.evaluate(() => { const t = [...document.querySelectorAll('.side .src')].map((b) => b.textContent); return t.some((x) => /WARM-UP/.test(x)) && t.some((x) => /ARCHIVE/.test(x)) && t.some((x) => /SMART DNB|DNB/.test(x)) && t.some((x) => /SUMMER SETS/.test(x)); }));
+ok('and no longer spells out the words FOLDER or SMART', await page.evaluate(() => ![...document.querySelectorAll('.side .src .nm')].some((x) => /^(FOLDER|SMART)\b/.test(x.textContent))));
 ok('a playlist inside a folder is indented', await page.evaluate(() => { const pad = (l) => parseFloat([...document.querySelectorAll('.side .src')].find((b) => b.textContent.includes(l)).style.paddingLeft); return pad('SUMMER') > pad('WARM-UP'); }));
 const first0 = (await titles())[0];
 await page.evaluate(() => { document.querySelector('.lib .rows').scrollTop = 20000; });
@@ -86,6 +87,35 @@ await sleep(300);
 ok('ALL matches fewer tracks than ANY', parseInt((await count())) < parseInt(any), `${any} -> ${await count()}`);
 await page.evaluate(() => { document.querySelector('.tgs .tag.md').click(); document.querySelectorAll('.tgs .tag')[1].click(); document.querySelectorAll('.tgs .tag')[2].click(); });
 await sleep(300);
+
+// ---- playlist icons and collapsible folders
+const rowOf = (name) => `[...document.querySelectorAll('.side .src')].find((b) => b.querySelector('.nm')?.textContent === ${JSON.stringify(name)})`;
+const iconKinds = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.side .src')].filter((b) => b.querySelector('.nm')).map((b) => [b.querySelector('.nm').textContent, [...b.querySelectorAll('svg')].map((v) => v.getAttribute('class').replace('ic ', '')).join('+')])));
+ok('a folder has a chevron and a folder icon', iconKinds['ARCHIVE'] === 'chev+fold' || iconKinds['ARCHIVE'] === 'chev open+fold', JSON.stringify(iconKinds));
+ok('a playlist has the playlist icon', iconKinds['WARM-UP'] === 'pl' && iconKinds['SUMMER SETS'] === 'pl', JSON.stringify(iconKinds));
+ok('a smart playlist has its own icon', iconKinds['DNB'] === 'smart', JSON.stringify(iconKinds));
+const visibleRows = () => page.evaluate(() => [...document.querySelectorAll('.side .src .nm')].map((x) => x.textContent));
+ok('folders start open and show what is inside', (await visibleRows()).includes('SUMMER SETS') && await page.evaluate(() => document.querySelector('.side .src[aria-expanded="true"]') !== null));
+await page.evaluate(() => [...document.querySelectorAll('.side .src')].find((b) => b.querySelector('.nm')?.textContent === 'ARCHIVE').click());
+ok('clicking a folder closes it and hides its contents', !!(await until(async () => !(await visibleRows()).includes('SUMMER SETS'))) && (await visibleRows()).includes('ARCHIVE') && (await visibleRows()).includes('WARM-UP'));
+ok('the folder says it is closed and the chevron turns back', await page.evaluate(() => { const b = [...document.querySelectorAll('.side .src')].find((x) => x.querySelector('.nm')?.textContent === 'ARCHIVE'); return b.getAttribute('aria-expanded') === 'false' && !b.querySelector('.chev').classList.contains('open'); }));
+ok('clicking a folder does not open it as a list', (await hash()) !== '#/library/playlist/2');
+ok('the closed folder is remembered', await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.folders_closed')).length === 1));
+await page.evaluate(() => [...document.querySelectorAll('.side .src')].find((b) => b.querySelector('.nm')?.textContent === 'ARCHIVE').click());
+ok('clicking again opens it', !!(await until(async () => (await visibleRows()).includes('SUMMER SETS'))) && await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.folders_closed')).length === 0));
+await page.evaluate(() => [...document.querySelectorAll('.side .src')].find((b) => b.querySelector('.nm')?.textContent === 'ARCHIVE').click());
+await sleep(300);
+await page.reload();
+await page.waitForSelector('.lib .rw', { timeout: 30000 });
+ok('a closed folder stays closed after a reload', !(await visibleRows()).includes('SUMMER SETS') && (await visibleRows()).includes('ARCHIVE'));
+await page.goto(APP + '/#/library/playlist/3');
+await page.reload();
+await page.waitForSelector('.lib .rw', { timeout: 30000 });
+ok('a link to a playlist inside a closed folder shows that folder open', !!(await until(async () => (await visibleRows()).includes('SUMMER SETS'))));
+await page.evaluate(() => localStorage.removeItem('vynull.folders_closed'));
+await page.goto(APP + '/#/library');
+await page.reload();
+await page.waitForSelector('.lib .rw', { timeout: 30000 });
 
 // ---- playlists and routes
 await side('WARM-UP');

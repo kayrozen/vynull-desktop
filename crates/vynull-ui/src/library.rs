@@ -2,7 +2,7 @@
 //! track list with configurable columns, and loading a track onto a deck.
 //! The track drawer (waveform, grid, cues, edits) and the queue come later.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::rc::Rc;
 
 use dioxus::prelude::*;
@@ -95,37 +95,12 @@ fn mmss(secs: i64) -> String {
     format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
-/// Playlists in tree order with their depth. Orphans (a missing parent) show at the top level.
-fn flatten(pls: &[PlaylistInfo]) -> Vec<(PlaylistInfo, usize)> {
-    let ids: HashSet<i64> = pls.iter().map(|p| p.id).collect();
-    let mut out = Vec::new();
-    fn walk(
-        pls: &[PlaylistInfo],
-        ids: &HashSet<i64>,
-        parent: i64,
-        depth: usize,
-        out: &mut Vec<(PlaylistInfo, usize)>,
-    ) {
-        let mut kids: Vec<&PlaylistInfo> = pls
-            .iter()
-            .filter(|p| {
-                if parent == 0 {
-                    p.parent_id == 0 || !ids.contains(&p.parent_id)
-                } else {
-                    p.parent_id == parent
-                }
-            })
-            .collect();
-        kids.sort_by_key(|p| (p.sort_order, p.id));
-        for p in kids {
-            out.push((p.clone(), depth));
-            if p.is_folder && depth < 8 {
-                walk(pls, ids, p.id, depth + 1, out);
-            }
-        }
+/// Whether the folder `folder` holds the playlist on screen, so it is shown open even if it was closed.
+fn source_now_in_folder(pls: &[PlaylistInfo], source: Source, folder: i64) -> bool {
+    match source {
+        Source::Playlist(id) => vynull_core::playlist_tree::ancestors(pls, id).contains(&folder),
+        _ => false,
     }
-    walk(pls, &ids, 0, 0, &mut out);
-    out
 }
 
 #[component]
@@ -173,6 +148,17 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                 .unwrap_or_default()
         }
     });
+    // Folders the user has closed, kept across restarts. Open is the default.
+    let mut closed = use_signal({
+        let store = platform.store.clone();
+        move || {
+            store
+                .get_json::<BTreeSet<i64>>("folders_closed")
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+        }
+    });
     let mut recent = use_signal({
         let store = platform.store.clone();
         move || {
@@ -191,6 +177,10 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         let store = platform.store.clone();
         use_effect(move || {
             let _ = store.set_json("sort", &sort());
+        });
+        let store = platform.store.clone();
+        use_effect(move || {
+            let _ = store.set_json("folders_closed", &closed());
         });
         let store = platform.store.clone();
         use_effect(move || {
@@ -555,7 +545,21 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
 
     let state = lib.read().clone();
     let total = state.tracks.len();
-    let flat = flatten(&state.playlists);
+    let flat = {
+        // The playlist on screen stays visible: the folders above it count as open.
+        let shown = match source() {
+            Source::Playlist(id) => vynull_core::playlist_tree::ancestors(&state.playlists, id),
+            _ => Vec::new(),
+        };
+        let closed_now: BTreeSet<i64> = closed()
+            .difference(&shown.into_iter().collect())
+            .copied()
+            .collect();
+        vynull_core::playlist_tree::visible(
+            &vynull_core::playlist_tree::flatten(&state.playlists),
+            &closed_now,
+        )
+    };
     let rows_idx = visible();
     let shown = rows_idx.len();
     let missing = rows_idx
@@ -650,23 +654,41 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                             let id = p.id;
                             let folder = p.is_folder;
                             let on = source_now == Source::Playlist(id);
-                            let label = format!(
-                                "{}{}",
-                                if p.is_smart { "SMART  " } else if folder { "FOLDER  " } else { "" },
-                                p.name.to_uppercase()
-                            );
-                            let count = if folder || p.is_smart { String::new() } else { p.track_ids.len().to_string() };
+                            let open = !closed().contains(&id) || source_now_in_folder(&state.playlists, source_now, id);
+                            let smart = p.is_smart;
+                            let name = p.name.to_uppercase();
+                            let count = if folder || smart { String::new() } else { p.track_ids.len().to_string() };
                             rsx! {
                                 button {
                                     key: "{id}",
                                     class: if on { "src on" } else { "src" },
                                     style: "padding-left:{16 + 20 * depth}px",
+                                    "aria-expanded": if folder { "{open}" } else { "" },
+                                    title: if folder { if open { "Collapse this folder" } else { "Expand this folder" } } else if smart { "Smart playlist" } else { "" },
                                     onclick: move |_| {
-                                        if !folder {
+                                        if folder {
+                                            let mut c = closed.write();
+                                            if !c.remove(&id) {
+                                                c.insert(id);
+                                            }
+                                        } else {
                                             go_source.call(Source::Playlist(id));
                                         }
                                     },
-                                    span { "{label}" }
+                                    if folder {
+                                        svg { class: if open { "ic chev open" } else { "ic chev" }, view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2.4", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
+                                            path { d: "M9 6l6 6-6 6" } }
+                                        svg { class: "ic fold", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", "aria-label": "Folder",
+                                            path { d: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" } }
+                                    } else if smart {
+                                        svg { class: "ic smart", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", "aria-label": "Smart playlist",
+                                            path { d: "M10 4l1.6 4.4L16 10l-4.4 1.6L10 16l-1.6-4.4L4 10l4.4-1.6zM18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z" } }
+                                    } else {
+                                        svg { class: "ic pl", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", "aria-label": "Playlist",
+                                            path { d: "M4 6h11M4 11h11M4 16h6M19 17V7l3 1" }
+                                            circle { cx: "17", cy: "17.5", r: "2.2" } }
+                                    }
+                                    span { class: "nm", "{name}" }
                                     span { class: "n", "{count}" }
                                 }
                             }

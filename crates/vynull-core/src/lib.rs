@@ -11,6 +11,7 @@ pub mod overlay;
 pub mod palette;
 pub mod phrase;
 pub mod playhead;
+pub mod playlist_tree;
 pub mod queue;
 pub mod route;
 pub mod search;
