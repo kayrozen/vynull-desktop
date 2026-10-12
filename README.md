@@ -5,8 +5,8 @@ gives a **web client** (WebAssembly) and a **desktop client** (a native window w
 It talks to the daemon's HTTP API (version **0.6.0**) and needs a running daemon; it does not replace it.
 
 > **Status: 0.1.0, a first release.** Everything below works against a scripted fake daemon and a fixture daemon
-> in the test suite. It has had little time on a real library and real decks, none on Safari or iPhone, and the
-> desktop window has only been run on Linux. See [Limits](#limits) before relying on it on stage.
+> in the test suite. The desktop client has been tried by hand on Windows and Linux. It has had little time on a
+> real library and real decks, and none on macOS, Safari or iPhone. See [Limits](#limits) before relying on it on stage.
 
 ## What it does
 
@@ -122,8 +122,9 @@ VYNULL_BIN=/path/to/vynull ISOLATE=1 ui-tests/run.sh     # browser tests (Firefo
 
 - **Built against Vynull 0.6.0.** The status endpoint has no version field, so a different daemon version may
   behave differently; the contract tests are the drift check.
-- **Safari and iPhone are untested.** Firefox and Chrome are tested headless. The desktop window has been run on
-  Linux only; macOS and Windows packages are built by CI and have not been opened by a person.
+- **macOS, Safari and iPhone are untested.** The desktop client has been tried by hand on Windows and Linux (which
+  packages, and for how long, was not recorded). The macOS `.dmg` is built by CI and has never been opened.
+  Firefox and Chrome are tested headless.
 - **Audio:** playback in the desktop app decodes the whole file into memory (about 60 MB for six minutes) and has
   not been listened to for quality. Browser playback uses the browser's decoder, which can differ from the
   daemon's analysis by a few milliseconds; the daemon only reports the analysed length in whole seconds.
