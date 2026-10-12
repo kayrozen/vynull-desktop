@@ -15,6 +15,8 @@ finish-args:
   - --socket=fallback-x11
   - --socket=pulseaudio    # playback in the drawer
   - --device=dri
+  # Without this the webview stays blank on some GPU setups (seen here with an NVIDIA driver: "Failed to create GBM buffer").
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
   env:

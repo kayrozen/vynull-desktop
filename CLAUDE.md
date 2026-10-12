@@ -49,6 +49,10 @@ Workspace layout (`crates/`): `vynull-api` (types + HTTP client), `vynull-core` 
 
 `Vynull-rs.md` is the source of truth for scope, stack, and decisions. Read it before making design choices.
 
+## Releases and packaging
+
+`.github/workflows/release.yml` builds every package: web zip, Linux deb, rpm and AppImage (x86_64) and deb and rpm (aarch64), Flatpak bundles (x86_64 and aarch64, built from source inside the sandbox from `packaging/flatpak/`), macOS dmg (Apple silicon), Windows msi and NSIS setup. A tag `vX.Y.Z` equal to the `Cargo.toml` version builds all of it and publishes a GitHub release with `SHA256SUMS` and `docs/release-notes/X.Y.Z.md`; "Run workflow" by hand builds without publishing. Bundles come from `dx bundle` (config in `crates/vynull-desktop/Dioxus.toml`); the Linux packagers reject the `.icns` and `.ico` icons, so `Dioxus.toml` lists PNGs and the macOS and Windows jobs copy `packaging/Dioxus.icons-mac-win.toml` over it. Nothing is signed or notarised. Checked here on Linux x86_64: the AppImage and the Flatpak both start and connect to a daemon; the deb and rpm were built and inspected only; macOS and Windows packages were built by CI and never opened. The Flatpak needs `WEBKIT_DISABLE_DMABUF_RENDERER=1` on the NVIDIA machine used here (set in its manifest). The Windows installer is about 185 MB (dx's default, probably the bundled WebView2 installer) and its CI job takes about 40 minutes because `dx` is compiled there.
+
 ## Reference material
 
 - `Vynull Web UI.html` is the mockup that defines screens and behavior. It is a 2.8 MB self-contained bundle (a `__bundler` format with the manifest, resources and template packed in `<script type="__bundler/...">` tags, unpacked at load time). Open it in a browser to inspect it. Don't read it whole. Grep for specifics, and note the plan's tests ("matches the mockup") refer to its behavior.

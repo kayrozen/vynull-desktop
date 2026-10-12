@@ -52,6 +52,9 @@ chmod +x vynull-desktop_0.1.0_x86_64.AppImage && ./vynull-desktop_0.1.0_x86_64.A
 flatpak install --user ./vynull-rs-0.1.0-x86_64.flatpak
 ```
 
+If the window opens blank (seen with some NVIDIA setups, with a `Failed to create GBM buffer` message), start it with
+`WEBKIT_DISABLE_DMABUF_RENDERER=1`. The Flatpak sets that already.
+
 ## Run it
 
 1. Start the Vynull daemon. By default it listens on `127.0.0.1:9443`. To reach it from another machine it has to
