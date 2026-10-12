@@ -4,7 +4,7 @@ A client for the [Vynull](https://github.com/vynulldev/vynull) DJ library daemon
 gives a **web client** (WebAssembly) and a **desktop client** (a native window with its own audio output).
 It talks to the daemon's HTTP API (version **0.6.0**) and needs a running daemon; it does not replace it.
 
-> **Status: 0.1.0, a first release.** Everything below works against a scripted fake daemon and a fixture daemon
+> **Status: 0.1.1, an early release.** Everything below works against a scripted fake daemon and a fixture daemon
 > in the test suite. The desktop client has been tried by hand on Windows and Linux. It has had little time on a
 > real library and real decks, and none on macOS, Safari or iPhone. See [Limits](#limits) before relying on it on stage.
 
@@ -37,7 +37,7 @@ Download a package from the [releases page](../../releases) of this repository.
 | Linux aarch64 | `.deb`, `.rpm`, Flatpak bundle |
 | macOS (Apple silicon) | `.dmg` |
 | Windows x86_64 | `.msi`, `-setup.exe` |
-| Any browser | `vynull-web-0.1.0.zip` (static files) |
+| Any browser | `vynull-web-0.1.1.zip` (static files) |
 
 `SHA256SUMS` lists every file. **None of the packages is signed or notarised.** macOS will refuse to open the
 app until you allow it in *System Settings > Privacy & Security*, and Windows SmartScreen will warn.
@@ -46,10 +46,10 @@ Linux packages need WebKitGTK 4.1, GTK 3 and ALSA (the `.deb` and `.rpm` declare
 carry what they need).
 
 ```sh
-sudo apt install ./vynull-desktop_0.1.0_amd64.deb      # Debian, Ubuntu
-sudo dnf install ./vynull-desktop-0.1.0-1.x86_64.rpm   # Fedora
-chmod +x vynull-desktop_0.1.0_x86_64.AppImage && ./vynull-desktop_0.1.0_x86_64.AppImage
-flatpak install --user ./vynull-rs-0.1.0-x86_64.flatpak
+sudo apt install ./vynull-desktop_0.1.1_amd64.deb      # Debian, Ubuntu
+sudo dnf install ./vynull-desktop-0.1.1-1.x86_64.rpm   # Fedora
+chmod +x vynull-desktop_0.1.1_x86_64.AppImage && ./vynull-desktop_0.1.1_x86_64.AppImage
+flatpak install --user ./vynull-rs-0.1.1-x86_64.flatpak
 ```
 
 If the window opens blank (seen with some NVIDIA setups, with a `Failed to create GBM buffer` message), start it with
@@ -66,7 +66,7 @@ The **web client** is a folder of static files. Until the daemon can serve it it
 option), serve it with any static file server and open that address:
 
 ```sh
-unzip vynull-web-0.1.0.zip -d vynull-web
+unzip vynull-web-0.1.1.zip -d vynull-web
 cd vynull-web && python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
