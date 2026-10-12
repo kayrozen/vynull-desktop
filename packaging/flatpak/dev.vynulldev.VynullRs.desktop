@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Vynull
+Comment=A client for the Vynull DJ library daemon
+Exec=vynull-desktop
+Icon=dev.vynulldev.VynullRs
+Terminal=false
+Categories=AudioVideo;Audio;Music;

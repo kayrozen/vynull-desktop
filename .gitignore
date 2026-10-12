@@ -3,3 +3,5 @@
 /ui-tests/node_modules
 /ui-tests/*.png
 /.claude
+/packaging/flatpak/vynull-rs-src.tar.gz
+/crates/vynull-desktop/packaging/Dioxus.linux.toml

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.vynulldev.VynullRs</id>
+  <name>Vynull</name>
+  <summary>A client for the Vynull DJ library daemon</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Browse and edit a Vynull library, follow the decks on the Pro DJ Link network, and edit beat grids, cues and playlists. It needs a running Vynull daemon.</p>
+  </description>
+  <launchable type="desktop-id">dev.vynulldev.VynullRs.desktop</launchable>
+  <releases>
+    <release version="0.1.0" date="2026-10-11"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -1,0 +1,49 @@
+# Flatpak build of the desktop client. Built from source inside the sandbox, which needs network
+# access during the build (cargo fetches crates), so this is for direct distribution, not Flathub.
+# `ci` builds it with: flatpak-builder --user --install-deps-from=flathub --force-clean build <this file>
+app-id: dev.vynulldev.VynullRs
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: vynull-desktop
+finish-args:
+  - --share=network        # the daemon is on the LAN
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio    # playback in the drawer
+  - --device=dri
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/vynull-rs/cargo
+modules:
+  # libxdo, which the desktop toolkit links on Linux
+  - name: xdotool
+    buildsystem: simple
+    build-commands:
+      - make -j"$FLATPAK_BUILDER_N_JOBS" libxdo.so
+      - install -Dm755 libxdo.so.3 /app/lib/libxdo.so.3
+      - ln -sf libxdo.so.3 /app/lib/libxdo.so
+      - install -Dm644 xdo.h /app/include/xdo.h
+    sources:
+      - type: archive
+        url: https://github.com/jordansissel/xdotool/releases/download/v3.20211022.1/xdotool-3.20211022.1.tar.gz
+        sha256: 96f0facfde6d78eacad35b91b0f46fecd0b35e474c03e00e30da3fdd345f9ada
+  - name: vynull-rs
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    build-commands:
+      - cargo build --release --locked -p vynull-desktop
+      - install -Dm755 target/release/vynull-desktop /app/bin/vynull-desktop
+      - install -Dm644 packaging/flatpak/dev.vynulldev.VynullRs.desktop /app/share/applications/dev.vynulldev.VynullRs.desktop
+      - install -Dm644 packaging/flatpak/dev.vynulldev.VynullRs.metainfo.xml /app/share/metainfo/dev.vynulldev.VynullRs.metainfo.xml
+      - install -Dm644 crates/vynull-desktop/icons/512x512.png /app/share/icons/hicolor/512x512/apps/dev.vynulldev.VynullRs.png
+      - install -Dm644 crates/vynull-desktop/icons/128x128.png /app/share/icons/hicolor/128x128/apps/dev.vynulldev.VynullRs.png
+    sources:
+      - type: archive
+        path: vynull-rs-src.tar.gz

@@ -1,0 +1,17 @@
+[application]
+name = "vynull-desktop"
+
+[bundle]
+identifier = "dev.vynulldev.vynull-rs"
+publisher = "vynull-rs"
+icon = ["icons/32x32.png", "icons/128x128.png", "icons/256x256.png", "icons/512x512.png"]
+short_description = "A client for the Vynull DJ library daemon"
+long_description = "Browse and edit a Vynull library, follow the decks on the Pro DJ Link network, and edit beat grids, cues and playlists from a desktop window."
+category = "Music"
+copyright = "MIT licensed"
+
+[bundle.deb]
+depends = ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libasound2 | libasound2t64"]
+
+[bundle.rpm]
+depends = ["webkit2gtk4.1", "gtk3", "alsa-lib"]
