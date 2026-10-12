@@ -112,7 +112,9 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
     let source = use_memo(move || route().source);
     let mut q = use_signal(String::new);
     let mut sug_open = use_signal(|| false);
-    let mut hi = use_signal(|| 0usize);
+    // The suggestion the arrow keys are on. None until the user presses an arrow: nothing is
+    // pre-selected, so Enter keeps what was typed and a suggestion needs a press of the down arrow first.
+    let mut hi = use_signal(|| None::<usize>);
     let sel = use_memo(move || route().track);
     let mut scroll_top = use_signal(|| 0.0_f64);
     let mut tag_sel = use_signal(Vec::<i64>::new);
@@ -550,7 +552,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         recent.write().add(&value);
         q.set(value);
         sug_open.set(false);
-        hi.set(0);
+        hi.set(None);
         scroll_top.set(0.0);
     });
 
@@ -579,7 +581,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         .count();
     let query = q();
     let has_q = !query.is_empty();
-    let hi_i = hi().min(sugs.read().len().saturating_sub(1));
+    let hi_i = hi().filter(|i| *i < sugs.read().len());
 
     let live = (feed.live)();
     let master_key = live
@@ -746,7 +748,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                 oninput: move |e| {
                                     q.set(e.value());
                                     sug_open.set(true);
-                                    hi.set(0);
+                                    hi.set(None);
                                     scroll_top.set(0.0);
                                 },
                                 onfocus: move |_| sug_open.set(true),
@@ -757,15 +759,17 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                     match e.key() {
                                         Key::ArrowDown if n > 0 => {
                                             e.prevent_default();
-                                            hi.set((hi_i + 1) % n);
+                                            hi.set(Some(hi_i.map_or(0, |i| (i + 1) % n)));
                                         }
                                         Key::ArrowUp if n > 0 => {
                                             e.prevent_default();
-                                            hi.set((hi_i + n - 1) % n);
+                                            // Up from the first suggestion goes back to the typed text.
+                                            hi.set(match hi_i { None => Some(n - 1), Some(0) => None, Some(i) => Some(i - 1) });
                                         }
-                                        Key::Enter if n > 0 => {
+                                        // Enter on a highlighted suggestion picks it; otherwise it keeps what was typed.
+                                        Key::Enter if hi_i.is_some() => {
                                             e.prevent_default();
-                                            let v = sugs.read()[hi_i].value.clone();
+                                            let v = sugs.read()[hi_i.unwrap_or(0)].value.clone();
                                             pick_sug.call(v);
                                         }
                                         Key::Enter if !q().is_empty() => {
@@ -785,7 +789,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                     onclick: move |_| {
                                         q.set(String::new());
                                         sug_open.set(false);
-                                        hi.set(0);
+                                        hi.set(None);
                                     },
                                     svg {
                                         width: "14",
@@ -804,7 +808,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                     for (i , s) in sugs.read().iter().enumerate() {
                                         button {
                                             key: "{s.field}{s.value}",
-                                            class: if i == hi_i { "si hi" } else { "si" },
+                                            class: if Some(i) == hi_i { "si hi" } else { "si" },
                                             role: "option",
                                             // mousedown, not click: the input would blur first and close the list.
                                             onmousedown: {
@@ -819,7 +823,7 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
                                             span { class: "c", "{s.count}" }
                                         }
                                     }
-                                    div { class: "sugf", "UP AND DOWN TO MOVE  ENTER TO PICK  ESC TO CLOSE" }
+                                    div { class: "sugf", "ENTER KEEPS WHAT YOU TYPED  DOWN, THEN ENTER TO PICK  ESC TO CLOSE" }
                                 }
                             }
                         }

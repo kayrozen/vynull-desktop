@@ -79,11 +79,18 @@ a{color:inherit;text-decoration:none}
 .chip.bad{background:#2A1A1D;color:#FF9A9A}
 .tab{cursor:pointer;border:0;background:none;font-family:inherit}
 .banner{padding:10px 24px;background:#2A2412;color:var(--accent-text);border-bottom:1px solid #4A3F1B;font-size:13px}
-.conn{max-width:520px;margin:12vh auto;display:flex;flex-direction:column;gap:14px}
+.conn{width:min(520px,calc(100% - 32px));box-sizing:border-box;margin:12vh auto 0;display:flex;flex-direction:column;gap:14px}
 .conn label{display:flex;flex-direction:column;gap:6px;font-family:Cousine,monospace;font-size:12px;letter-spacing:.06em;color:var(--mut)}
 .conn input{height:44px;box-sizing:border-box;padding:0 12px;border-radius:10px;border:1px solid var(--line2);background:var(--surface2);font-size:15px}
 .conn input:focus{outline:none;border-color:#FFC15A}
 .conn .err{color:#FF9A9A;font-size:13px}
+.conn.inst{margin-top:16px;margin-bottom:40px;font-size:14px;line-height:1.45;color:var(--mut)}
+.conn.inst p{margin:0}
+.conn.inst b{color:var(--text);font-weight:600}
+.conn.inst ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.conn.inst code{font-family:Cousine,monospace;font-size:13px;color:var(--accent-text);background:var(--surface2);padding:1px 6px;border-radius:4px}
+.conn.inst .row{display:flex;gap:10px;flex-wrap:wrap}
+.conn.inst a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .art img{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
 .cp{display:flex;gap:6px;align-items:center}
 .cp .bdg{min-width:60px;text-align:center}

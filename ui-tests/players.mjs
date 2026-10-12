@@ -10,6 +10,22 @@ const page = await newPage(browser, [APP, FAKE]);
 await page.goto(APP + '/');
 await page.waitForSelector('.conn input');
 ok('first visit asks for the daemon', await page.evaluate(() => /HOST AND PORT/.test(document.body.innerText)));
+const inst = () => page.evaluate(() => { const c = document.querySelector('.conn.inst'); if (!c) return null; return { text: c.textContent, links: [...c.querySelectorAll('a')].map((a) => ({ t: a.textContent.trim(), href: a.getAttribute('href'), target: a.getAttribute('target'), rel: a.getAttribute('rel') })), code: [...c.querySelectorAll('code')].map((x) => x.textContent) }; });
+const instInfo = await inst();
+ok('the connection screen says what the daemon is and where to get it', !!instInfo && /NO DAEMON YET/.test(instInfo.text) && /separate, free program/.test(instInfo.text), JSON.stringify(instInfo?.text.slice(0, 60)));
+ok('GET VYNULL points at the Vynull project, in a new tab', !!instInfo?.links.find((l) => l.t === 'GET VYNULL' && l.href === 'https://github.com/vynulldev/vynull' && l.target === '_blank' && /noopener/.test(l.rel || '')), JSON.stringify(instInfo?.links));
+ok('RELEASES points at its releases page', !!instInfo?.links.find((l) => l.t === 'RELEASES' && l.href === 'https://github.com/vynulldev/vynull/releases'));
+ok('it is honest that the daemon is Linux only and has no authentication', /Linux/.test(instInfo?.text || '') && /no authentication/.test(instInfo?.text || '') && instInfo.code.includes('vynull --web'));
+ok('the install card is as wide as the form', await page.evaluate(() => { const f = document.querySelector('form.conn').getBoundingClientRect(), c = document.querySelector('.conn.inst').getBoundingClientRect(); return Math.abs(f.width - c.width) < 1 && Math.abs(f.left - c.left) < 1; }));
+ok('the install card sits below the form, inside the window', await page.evaluate(() => { const f = document.querySelector('form.conn').getBoundingClientRect(), c = document.querySelector('.conn.inst').getBoundingClientRect(); return c.top >= f.bottom && c.bottom <= document.documentElement.scrollHeight; }));
+// a dead address: the error names it, and the install card is still there
+await page.$eval('.conn input', (e) => { e.value = ''; });
+await page.type('.conn input', '127.0.0.1:9');
+await page.click('.conn button[type=submit]');
+ok('a daemon that is not there gives an error and keeps the install card', !!(await until(() => page.evaluate(() => !!document.querySelector('.conn .err') && !!document.querySelector('.conn.inst a[href*="vynulldev"]')))), await page.evaluate(() => document.querySelector('.conn .err')?.textContent));
+// The dead address was typed on purpose: its failed request and the error it logs are not strays.
+page.external = page.external.filter((u) => !u.startsWith('http://127.0.0.1:9/'));
+page.errors = page.errors.filter((e) => !/127\.0\.0\.1:9\b|Failed to fetch|NetworkError|net::ERR|error sending request/.test(e));
 await page.$eval('.conn input', (e) => { e.value = ''; });
 await page.type('.conn input', FAKE.replace('http://', ''));
 await page.click('.conn button[type=submit]');
