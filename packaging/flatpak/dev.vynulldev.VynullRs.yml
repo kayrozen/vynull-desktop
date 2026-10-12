@@ -25,7 +25,7 @@ modules:
     buildsystem: simple
     build-commands:
       - make -j"$FLATPAK_BUILDER_N_JOBS" libxdo.so
-      - install -Dm755 libxdo.so.3 /app/lib/libxdo.so.3
+      - install -Dm755 libxdo.so /app/lib/libxdo.so.3
       - ln -sf libxdo.so.3 /app/lib/libxdo.so
       - install -Dm644 xdo.h /app/include/xdo.h
     sources:
@@ -37,6 +37,8 @@ modules:
     build-options:
       build-args:
         - --share=network
+      env:
+        RUSTFLAGS: -L /app/lib
     build-commands:
       - cargo build --release --locked -p vynull-desktop
       - install -Dm755 target/release/vynull-desktop /app/bin/vynull-desktop
