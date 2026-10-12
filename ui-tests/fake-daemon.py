@@ -67,6 +67,7 @@ PLAYLISTS = [
 ]
 NEXT_PLAYLIST = [10]
 EXT_ASKS = {}
+EMPTY_DECKS = set()  # device numbers a test has asked to unload
 NEXT_ID = {"tag": 100, "cat": 100}
 
 SETTINGS = {
@@ -118,6 +119,10 @@ def players():
     out = []
 
     def deck(n, tid, state, playing, master, onair, bpm, pitch, ext, key, start):
+        if n in EMPTY_DECKS:
+            out.append({"device_number": n, "name": "CDJ-3000", "track_id": 0, "track_title": "", "artist": "", "bpm": 0, "pitch_pct": 0, "key": "",
+                        "is_playing": False, "is_master": False, "on_air": False, "beat_in_bar": 0, "play_state_name": "empty"})
+            return
         d = BY_ID.get(tid)
         beat_len = 60.0 / bpm
         elapsed = start + (t if playing else 0)
@@ -186,6 +191,11 @@ class H(BaseHTTPRequestHandler):
             LOG.append(["POST", path, body])
             if path == "/api/load":
                 return self.send(200, {"status": "ok"})
+            if path == "/__decks":
+                # Test hook: {"empty": [2]} unloads deck 2, {"empty": []} puts every deck back.
+                EMPTY_DECKS.clear()
+                EMPTY_DECKS.update(body.get("empty", []))
+                return self.send(200, {"OK": True})
             if path == "/api/playlists":
                 pid = NEXT_PLAYLIST[0]
                 NEXT_PLAYLIST[0] += 1
@@ -307,7 +317,7 @@ class H(BaseHTTPRequestHandler):
                     pl = players()
                     a = pl[0]
                     np = {"playing": True, "device_number": 1, "track_id": a["track_id"], "title": a["track_title"], "artist": a["artist"],
-                          "bpm": a["bpm"], "key": a["key"], "duration_ms": a["duration_ms"]}
+                          "bpm": a["bpm"], "key": a["key"], "duration_ms": a.get("duration_ms", 0)}
                     self.wfile.write(f"event: state\ndata: {json.dumps({'players': pl, 'nowplaying': np})}\n\n".encode())
                     self.wfile.flush()
                     time.sleep(0.25)
@@ -350,6 +360,16 @@ class H(BaseHTTPRequestHandler):
                 return self.send(404, b"not found", "text/plain")
             tracks = smart_tracks(pl["rules"]) if pl.get("is_smart") and pl.get("rules") else [BY_ID[i] for i in pl["track_ids"] if i in BY_ID]
             return self.send(200, tracks)
+        if p.startswith("/api/analysis/") and p.rsplit("/", 1)[1].isdigit() and p.count("/") == 3:
+            # Beat grid at the track's own tempo, bars of four.
+            tid = int(p.rsplit("/", 1)[1])
+            t = BY_ID.get(tid)
+            if not t:
+                return self.send(404, b"no analysis", "text/plain")
+            bpm = t["bpm"]
+            beats = [{"time_ms": round(i * 60000.0 / bpm, 1), "beat_in_bar": i % 4 + 1} for i in range(int(120 * bpm / 60))]
+            return self.send(200, {"track_id": tid, "bpm": bpm, "key": t["key"], "duration_sec": 120, "beat_count": len(beats), "downbeat_index": 0,
+                                   "beats": beats, "cues": [{"number": 1, "type": "cue", "time_ms": 8200, "loop_ms": -1, "color_id": 0, "label": ""}]})
         if p.startswith("/api/analysis/ext/"):
             # What a deck reads from its own USB: 404 for the first two asks, as the real daemon does until it has read it.
             EXT_ASKS[p] = EXT_ASKS.get(p, 0) + 1

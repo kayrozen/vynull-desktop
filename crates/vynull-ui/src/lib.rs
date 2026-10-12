@@ -18,6 +18,7 @@ mod players;
 mod prefs;
 mod settings;
 mod shell;
+mod stack;
 mod tags;
 
 pub use shell::{App, Platform};

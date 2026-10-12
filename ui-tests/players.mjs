@@ -1,8 +1,9 @@
 // Players screen and the shell around it, against the fake daemon (four scripted decks).
-import { launch, start, sleep, until, connect, openTab, newPage } from './common.mjs';
+import { launch, start, sleep, until, connect, openTab, newPage, btn as btn0 } from './common.mjs';
 
 const APP = process.env.APP, FAKE = process.env.FAKE;
-const { ok, failures } = start();
+const T = start();
+const { ok, failures } = T;
 const browser = await launch();
 const page = await newPage(browser, [APP, FAKE]);
 
@@ -59,6 +60,36 @@ ok('the master deck lights MASTER and the others do not', await page.evaluate(()
 ok('SYNC is lit on the decks in sync (1 and 3) only', await page.evaluate(() => { const lit = (a) => !![...a.querySelectorAll('.pch .bdg.sy')].length; const d = [...document.querySelectorAll('.pcs article')]; return lit(d[0]) && !lit(d[1]) && lit(d[2]); }));
 ok('an external-source deck gets its waveform from the deck USB (after the daemon has read it)', !!(await until(() => page.evaluate(() => { const a = document.querySelectorAll('.pcs article')[2]; return a.querySelectorAll('.ov svg path[fill^="rgb("]').length > 5 && !/NO WAVEFORM|WAITING/.test(a.querySelector('.ov').textContent); }), 20000)));
 ok('and its cue from the USB is marked', await page.evaluate(() => document.querySelectorAll('.pcs article')[2].querySelectorAll('.ov svg path').length > 1));
+// ---- waveform stack: one row per loaded deck, centred on the same line
+const btn = (sel, text, exact) => btn0(page, T, sel, text, exact);
+const stackRows = () => page.evaluate(() => [...document.querySelectorAll('.stk .sk')].map((r) => r.querySelector('.pn').textContent));
+ok('the stack has a row for each deck with a track (P1 to P3), none for the empty P4', !!(await until(async () => (await stackRows()).join() === 'P1,P2,P3')), (await stackRows()).join());
+ok('the rows draw colored bars and beat lines', !!(await until(() => page.evaluate(() => { const r = document.querySelector('.stk .sk .skin svg'); return !!r && r.querySelectorAll('path[fill^="rgb("]').length > 3 && r.querySelector('path.gbeat').getAttribute('d').length > 20; }))));
+ok('all rows share one centre line', await page.evaluate(() => document.querySelectorAll('.stk .skcl').length === 1 && (() => { const c = document.querySelector('.stk .skcl').getBoundingClientRect(), ws = [...document.querySelectorAll('.stk .skw')].map((w) => w.getBoundingClientRect()); const mid = (r) => r.left + r.width / 2; return ws.every((w) => Math.abs(mid(w) - (c.left + c.width / 2)) < 1.5) && ws.every((w) => Math.abs(w.left - ws[0].left) < 1 && Math.abs(w.width - ws[0].width) < 1); })()));
+ok('the playhead of each row sits under that line (strip offset = position)', await page.evaluate(() => [...document.querySelectorAll('.stk .skin')].every((s) => /translateX\(-?[\d.]+%\)/.test(s.style.transform))));
+const shiftOf = (n) => page.evaluate((i) => parseFloat(document.querySelectorAll('.stk .skin')[i].style.transform.match(/-?[\d.]+/)[0]), n);
+const sh0 = await shiftOf(0);
+await sleep(1200);
+ok('a playing deck scrolls under the line', (await shiftOf(0)) < sh0, `${sh0} -> ${await shiftOf(0)}`);
+const sh1a = await shiftOf(1); await sleep(800);
+ok('a cued deck does not scroll', (await shiftOf(1)) === sh1a);
+ok('the master deck is marked', await page.evaluate(() => document.querySelectorAll('.stk .sk')[0].querySelector('.skm') !== null && document.querySelectorAll('.stk .sk')[1].querySelector('.skm') === null));
+ok('on-air decks are lit', await page.evaluate(() => [...document.querySelectorAll('.stk .sk')].map((r) => r.classList.contains('on')).join() === 'true,false,true'));
+ok('the external deck gets its waveform from its USB', !!(await until(() => page.evaluate(() => document.querySelectorAll('.stk .sk')[2].querySelectorAll('svg path[fill^="rgb("]').length > 3), 20000)));
+const wBefore = await page.evaluate(() => parseFloat(document.querySelector('.stk .skin').style.width));
+ok('4 bars is the closest level, so zoom in is disabled to start with', await page.evaluate(() => document.querySelector('.stk button[aria-label="Zoom the stack in"]').disabled));
+await btn('.stk .hd .btn', 'Zoom the stack out');
+ok('zooming out to 8 bars halves the strip', !!(await until(() => page.evaluate((w) => Math.abs(parseFloat(document.querySelector('.stk .skin').style.width) / w - 0.5) < 0.05, wBefore))), `${wBefore} -> ${await page.evaluate(() => document.querySelector('.stk .skin').style.width)}`);
+ok('and the level is remembered', await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.stack_bars')) === 8));
+await page.keyboard.down('Control'); await page.mouse.move(600, 500); await page.evaluate(() => document.querySelector('.stk').dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true }))); await page.keyboard.up('Control');
+ok('Ctrl-scroll up zooms back in', !!(await until(() => page.evaluate(() => JSON.parse(localStorage.getItem('vynull.stack_bars')) === 4))));
+await fetch(FAKE + '/__decks', { method: 'POST', body: JSON.stringify({ empty: [2] }) });
+ok('unloading deck 2 removes its row by itself', !!(await until(async () => (await stackRows()).join() === 'P1,P3', 8000)), (await stackRows()).join());
+await fetch(FAKE + '/__decks', { method: 'POST', body: JSON.stringify({ empty: [1, 2, 3] }) });
+ok('with every deck empty the whole stack goes', !!(await until(() => page.evaluate(() => document.querySelector('.stk') === null), 8000)));
+await fetch(FAKE + '/__decks', { method: 'POST', body: JSON.stringify({ empty: [] }) });
+ok('loading tracks brings the rows back', !!(await until(async () => (await stackRows()).join() === 'P1,P2,P3', 8000)), (await stackRows()).join());
+
 const a = info.phd;
 await sleep(1500);
 const b = await page.evaluate(() => [...document.querySelectorAll('.phd')].map((e) => parseFloat(e.style.left)));

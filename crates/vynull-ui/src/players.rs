@@ -67,6 +67,8 @@ pub fn Players(feed: Feed, base: String, goto: EventHandler<Tab>) -> Element {
             }
         }
 
+        crate::stack::WaveStack { players: live.players.clone(), feed }
+
         section { class: "pcs",
             if live.players.is_empty() {
                 article { class: "card",
