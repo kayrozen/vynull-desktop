@@ -36,3 +36,15 @@ pub async fn scroll_list_by(list: &str, dy: i32) {
         .await;
     }
 }
+
+/// Put a scrolling list back at its top. Setting a signal that mirrors the scroll position is not
+/// enough: the element keeps its own `scrollTop`, so the rows drawn for the top would sit outside
+/// the part that is shown, and the list looks empty until the next scroll event.
+pub async fn scroll_list_to_top(list: &str) {
+    if let Ok(l) = serde_json::to_string(list) {
+        let _ = document::eval(&format!(
+            "const l = document.querySelector({l}); if (l) l.scrollTop = 0;"
+        ))
+        .await;
+    }
+}

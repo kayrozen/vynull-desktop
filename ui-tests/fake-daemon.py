@@ -350,9 +350,12 @@ class H(BaseHTTPRequestHandler):
             "/api/import/status": lambda: {"active": False, "phase": "", "done": 0, "total": 0},
             "/api/export/preview": lambda: {"total": 4 if q.get("source", ["all"])[0] != "all" else len(TRACKS)},
             "/api/fs/list": lambda: ({"path": "", "parent": "", "roots": True, "entries": [{"name": "/media", "path": "/media", "is_dir": True, "audio": False}]}
-                                     if "path" not in q else {"path": q["path"][0], "parent": "", "roots": False, "entries": [
-                                         {"name": "library.xml", "path": q["path"][0] + "/library.xml", "is_dir": False, "audio": False},
-                                         {"name": "song.mp3", "path": q["path"][0] + "/song.mp3", "is_dir": False, "audio": True}]}),
+                             if "path" not in q else
+                             # Like the real daemon (api/fs.go): subfolders and audio files only. A library
+                             # file such as library.xml is never listed, though it exists and can be imported.
+                             {"path": q["path"][0], "parent": "", "roots": False, "entries": [
+                                 {"name": "exports", "path": q["path"][0] + "/exports", "is_dir": True, "audio": False},
+                                 {"name": "song.mp3", "path": q["path"][0] + "/song.mp3", "is_dir": False, "audio": True}]}),
             "/api/settings": lambda: settings_reply(),
             "/api/settings/enums": lambda: ENUMS,
             "/api/menu-items": lambda: MENU,

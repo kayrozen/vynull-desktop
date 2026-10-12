@@ -19,6 +19,10 @@ use crate::shell::ClientCtx;
 pub fn FilePicker(
     /// Extensions that can be picked, lowercase, no dot. Empty means a folder is wanted.
     extensions: Vec<String>,
+    /// Also offer the open folder when files are wanted. The daemon lists only folders and audio
+    /// files (`api/fs.go`), so a library file such as an XML never shows up in the list: the user
+    /// picks its folder here and types the name.
+    allow_folder: bool,
     on_pick: EventHandler<String>,
     on_cancel: EventHandler<()>,
 ) -> Element {
@@ -34,9 +38,16 @@ pub fn FilePicker(
     rsx! {
         div { class: "fp",
             div { class: "wt",
-                span { class: "sh2", if want_folder { "CHOOSE A FOLDER" } else { "CHOOSE A FILE" } }
+                span { class: "sh2",
+                    if want_folder { "CHOOSE A FOLDER" } else if allow_folder { "CHOOSE THE FOLDER THAT HOLDS THE FILE" } else { "CHOOSE A FILE" }
+                }
                 span { class: "sp" }
                 button { class: "btn sm", onclick: move |_| on_cancel.call(()), "CANCEL" }
+            }
+            if allow_folder {
+                span { class: "mut", style: "font-size:13px",
+                    "The daemon lists folders and audio files only, so the file itself will not appear. Open its folder, press USE THIS FOLDER, then type the file name."
+                }
             }
             match &*listing.read() {
                 None => rsx! { span { class: "mut", "Loading…" } },
@@ -81,7 +92,7 @@ pub fn FilePicker(
                                 }
                             }
                         }
-                        if want_folder && !l.roots {
+                        if (want_folder || allow_folder) && !l.roots {
                             button { class: "btn on sm", onclick: { let p = l.path.clone(); move |_| on_pick.call(p.clone()) }, "USE THIS FOLDER" }
                         }
                     }
@@ -89,6 +100,26 @@ pub fn FilePicker(
             }
         }
     }
+}
+
+/// `folder` followed by the separator its own text uses (`\\` for a Windows path, `/` otherwise).
+fn with_separator(folder: &str) -> String {
+    let sep = if folder.contains('\\') && !folder.contains('/') {
+        '\\'
+    } else {
+        '/'
+    };
+    if folder.ends_with('/') || folder.ends_with('\\') {
+        folder.to_string()
+    } else {
+        format!("{folder}{sep}")
+    }
+}
+
+/// A path that names a file: not empty and not ending at a folder separator.
+fn looks_like_a_file(path: &str) -> bool {
+    let p = path.trim();
+    !p.is_empty() && !p.ends_with('/') && !p.ends_with('\\')
 }
 
 /// Import a rekordbox library or a Traktor collection.
@@ -114,7 +145,7 @@ fn ImportCard(on_flash: EventHandler<String>) -> Element {
     };
     let c = client.clone();
     let start = move |_| {
-        if running() || file().is_empty() {
+        if running() || !looks_like_a_file(&file()) {
             return;
         }
         running.set(true);
@@ -122,7 +153,7 @@ fn ImportCard(on_flash: EventHandler<String>) -> Element {
         status.set("STARTING…".into());
         let c = c.clone();
         let req = ImportRequest {
-            path: file(),
+            path: file().trim().to_string(),
             key: if needs_key && !key().trim().is_empty() {
                 Some(key().trim().to_string())
             } else {
@@ -187,7 +218,19 @@ fn ImportCard(on_flash: EventHandler<String>) -> Element {
                 button { class: if traktor() { "btn sm on" } else { "btn sm" }, onclick: move |_| { traktor.set(true); file.set(String::new()); }, "TRAKTOR" }
             }
             span { class: "mut", if traktor() { "Choose a Traktor collection.nml." } else { "Choose a rekordbox XML, a master.db or a backup zip." } }
-            if !file().is_empty() { div { class: "pth", "{file()}" } }
+            div { class: "fld", style: "grid-template-columns:1fr",
+                label { class: "w", "FILE ON THE DAEMON'S COMPUTER"
+                    input {
+                        class: "in mono",
+                        r#type: "text",
+                        placeholder: if traktor() { "/path/to/collection.nml" } else { "/path/to/library.xml, master.db or backup.zip" },
+                        "aria-label": "Path of the file to import",
+                        value: "{file()}",
+                        disabled: running(),
+                        oninput: move |e| file.set(e.value()),
+                    }
+                }
+            }
             if needs_key {
                 div { class: "fld", style: "grid-template-columns:1fr",
                     label { class: "w", "KEY, MASTER.DB AND BACKUP ZIP ONLY"
@@ -196,11 +239,20 @@ fn ImportCard(on_flash: EventHandler<String>) -> Element {
                 }
             }
             if picking() {
-                FilePicker { extensions: exts, on_pick: move |p| { file.set(p); picking.set(false); }, on_cancel: move |_| picking.set(false) }
+                FilePicker {
+                    extensions: exts,
+                    allow_folder: true,
+                    // A folder fills the field up to its last separator, as the daemon's system writes it.
+                    on_pick: move |p: String| {
+                        file.set(with_separator(&p));
+                        picking.set(false);
+                    },
+                    on_cancel: move |_| picking.set(false),
+                }
             } else {
                 div { class: "opt",
-                    button { class: "btn", disabled: running(), onclick: move |_| picking.set(true), "CHOOSE FILE" }
-                    button { class: "btn on", disabled: running() || file().is_empty(), onclick: start, if running() { "IMPORTING…" } else { "IMPORT" } }
+                    button { class: "btn", disabled: running(), onclick: move |_| picking.set(true), "BROWSE FOLDERS" }
+                    button { class: "btn on", disabled: running() || !looks_like_a_file(&file()), onclick: start, if running() { "IMPORTING…" } else { "IMPORT" } }
                 }
             }
             if !status().is_empty() {
@@ -284,7 +336,7 @@ fn ExportCard(playlists: Vec<PlaylistInfo>, on_flash: EventHandler<String>) -> E
                 }
             }
             if picking() {
-                FilePicker { extensions: Vec::new(), on_pick: move |p| { dest.set(p); picking.set(false); }, on_cancel: move |_| picking.set(false) }
+                FilePicker { extensions: Vec::new(), allow_folder: false, on_pick: move |p| { dest.set(p); picking.set(false); }, on_cancel: move |_| picking.set(false) }
             }
             div { class: "opt",
                 label { class: "chk", input { r#type: "checkbox", checked: copy(), onchange: move |e| copy.set(e.checked()) } "Copy files" }
@@ -451,5 +503,29 @@ fn RuleRow(
             }
             button { class: "btn ib", style: "width:36px;height:36px", title: "Remove this rule", onclick: move |_| on_remove.call(()), "✕" }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_becomes_the_start_of_a_file_path() {
+        assert_eq!(with_separator("/media/usb"), "/media/usb/");
+        assert_eq!(with_separator("/media/usb/"), "/media/usb/");
+        assert_eq!(with_separator("C:\\Music\\Exports"), "C:\\Music\\Exports\\");
+        assert_eq!(with_separator("/"), "/");
+    }
+
+    #[test]
+    fn only_a_path_that_ends_in_a_name_can_be_imported() {
+        assert!(looks_like_a_file("/media/usb/library.xml"));
+        assert!(looks_like_a_file("  /media/usb/master.db "));
+        assert!(looks_like_a_file("C:\\x\\collection.nml"));
+        assert!(!looks_like_a_file(""));
+        assert!(!looks_like_a_file("   "));
+        assert!(!looks_like_a_file("/media/usb/"));
+        assert!(!looks_like_a_file("C:\\Music\\"));
     }
 }

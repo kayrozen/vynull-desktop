@@ -117,6 +117,38 @@ await page.goto(APP + '/#/library');
 await page.reload();
 await page.waitForSelector('.lib .rw', { timeout: 30000 });
 
+// ---- the list must show rows after the list changes, without a scroll
+const rowsInView = () => page.evaluate(() => { const box = document.querySelector('.lib .rows').getBoundingClientRect(); const head = document.querySelector('.lib .lh').getBoundingClientRect().bottom; return [...document.querySelectorAll('.lib .rw')].filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > head + 4 && b.top < box.bottom - 4; }).length; });
+const scrollFar = async () => { await page.evaluate(() => { document.querySelector('.lib .rows').scrollTop = 30000; }); await sleep(400); };
+await side('COLLECTION'); await sleep(400);
+await scrollFar();
+ok('scrolled far down the collection there are rows in view (baseline)', (await rowsInView()) > 3, String(await rowsInView()));
+await setQ('sample');
+await sleep(600);
+ok('a search from far down shows its first rows at once, with no scroll', (await rowsInView()) > 3, `${await rowsInView()} in view, scrollTop ${await page.evaluate(() => document.querySelector('.lib .rows').scrollTop)}`);
+ok('and the list is back at the top', (await page.evaluate(() => document.querySelector('.lib .rows').scrollTop)) === 0);
+await setQ('');
+await sleep(300);
+await scrollFar();
+await side('DNB');
+await sleep(600);
+ok('a long smart playlist chosen from far down shows its first rows at once', (await rowsInView()) > 3, `${await rowsInView()} in view`);
+await side('COLLECTION'); await sleep(300);
+await scrollFar();
+await page.evaluate(() => document.querySelector('.tgs .tag.md')?.click());
+await sleep(400);
+await page.evaluate(() => document.querySelectorAll('.tgs .tag')[1].click());
+await sleep(500);
+ok('a tag filter chosen from far down shows its first rows at once', (await rowsInView()) > 3 || (await count()).startsWith('0 OF'), `${await rowsInView()} in view`);
+await page.evaluate(() => { document.querySelectorAll('.tgs .tag')[1].click(); });
+await sleep(300);
+await scrollFar();
+await page.evaluate(() => document.querySelector('.lh .c-b').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await sleep(500);
+ok('a column sort from far down shows its first rows at once', (await rowsInView()) > 3, `${await rowsInView()} in view`);
+await page.evaluate(() => { const h = document.querySelector('.lh .c-b'); h.dispatchEvent(new MouseEvent('click', { bubbles: true })); h.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+await sleep(300);
+
 // ---- playlists and routes
 await side('WARM-UP');
 await sleep(500);
@@ -399,24 +431,41 @@ await btn('.bar .btn', 'Import and export');
 ok('the export panel counts tracks', !!(await until(() => page.evaluate(() => /1200 TRACKS WILL EXPORT/.test(document.body.innerText)))));
 await page.select('.tool select', 'playlist:1');
 ok('and recounts for another source', !!(await until(() => page.evaluate(() => /4 TRACKS WILL EXPORT/.test(document.body.innerText)))));
-await btn('.tool .btn', 'BROWSE');
+await btn('.tool .btn', 'BROWSE', true); // exact: the import card's button is BROWSE FOLDERS
 ok('the folder picker lists the daemon folders', !!(await until(() => page.evaluate(() => /\/media/.test(document.querySelector('.fp')?.textContent || '')))));
 await page.evaluate(() => [...document.querySelectorAll('.fpe')].find((e) => e.textContent.includes('/media')).click());
 await until(() => page.evaluate(() => [...document.querySelectorAll('.fp .btn')].some((b) => /USE THIS FOLDER/.test(b.textContent)))); // a slow runner needs longer than a fixed wait
 await btn('.fp .btn', 'USE THIS FOLDER');
-ok('picking a folder fills the destination', await page.evaluate(() => document.querySelector('.tool input.mono').value === '/media'));
+ok('picking a folder fills the destination', await page.evaluate(() => [...document.querySelectorAll('.tool input.mono')].some((i) => i.value === '/media')));
 await btn('.tool .btn', 'WRITE USB');
 ok('writing sends the options', !!(await until(async () => { const m = (await log()).find((x) => x[1] === '/api/export'); return m && m[2].destination === '/media' && m[2].source === 'playlist:1' && m[2].copy_files === true && m[2].merge === false; })));
-await btn('.tool .btn', 'CHOOSE FILE');
+// ---- import: the daemon never lists a library file, so the file is reached by folder plus typed name
+const fileField = () => page.evaluate(() => document.querySelector('.tool input[aria-label="Path of the file to import"]')?.value);
+const importBtn = () => page.evaluate(() => [...document.querySelectorAll('.tool .btn')].find((b) => b.textContent.trim() === 'IMPORT' || b.textContent.trim() === 'IMPORTING…')?.disabled);
+ok('the import card has a field for the path of the file', (await fileField()) === '');
+ok('IMPORT is off while there is no path', (await importBtn()) === true);
+await btn('.tool .btn', 'BROWSE FOLDERS');
 await until(() => page.evaluate(() => [...document.querySelectorAll('.fpe')].some((e) => e.textContent.includes('/media'))));
 await page.evaluate(() => [...document.querySelectorAll('.fpe')].find((e) => e.textContent.includes('/media')).click());
-await sleep(400);
-ok('the file picker greys out other file types', await page.evaluate(() => [...document.querySelectorAll('.fpe')].find((e) => e.textContent.includes('song.mp3'))?.disabled === true));
-await page.evaluate(() => [...document.querySelectorAll('.fpe')].find((e) => e.textContent.includes('library.xml')).click());
-await sleep(300);
+await until(() => page.evaluate(() => [...document.querySelectorAll('.fp .btn')].some((b) => /USE THIS FOLDER/.test(b.textContent))));
+ok('the picker lists folders and audio only, as the real daemon does (no XML in it)', await page.evaluate(() => { const n = [...document.querySelectorAll('.fpe')].map((e) => e.textContent); return n.some((x) => x.includes('exports')) && n.some((x) => x.includes('song.mp3')) && !n.some((x) => /\.xml|\.db|\.zip|\.nml/.test(x)); }));
+ok('and says why the file is not there and what to do', await page.evaluate(() => /folders and audio files only/.test(document.querySelector('.fp').textContent) && /USE THIS FOLDER/.test(document.querySelector('.fp').textContent)));
+await btn('.fp .btn', 'USE THIS FOLDER');
+ok('picking a folder starts the path with it and a separator', (await fileField()) === '/media/', await fileField());
+ok('IMPORT stays off while the path ends at a folder', (await importBtn()) === true);
+await page.evaluate(() => { const i = document.querySelector('.tool input[aria-label="Path of the file to import"]'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+await page.keyboard.type('library.xml');
+ok('typing the file name completes the path', (await fileField()) === '/media/library.xml');
+ok('and turns IMPORT on', (await importBtn()) === false);
 await btn('.tool .btn', 'IMPORT', true);
 ok('importing reports the result', !!(await until(() => page.evaluate(() => /DONE: 2 TRACKS ADDED, 1 UPDATED/.test(document.body.innerText)))));
-ok('and sends the chosen file', (await log()).some((x) => x[1] === '/api/import/rekordbox' && x[2].path === '/media/library.xml'));
+ok('and sends the typed path', (await log()).some((x) => x[1] === '/api/import/rekordbox' && x[2].path === '/media/library.xml'));
+// a path typed from scratch, with stray spaces, and a different kind of file
+await page.evaluate(() => { const i = document.querySelector('.tool input[aria-label="Path of the file to import"]'); i.focus(); i.select(); });
+await page.keyboard.type('  /somewhere/else/master.db  ');
+await sleep(200);
+await btn('.tool .btn', 'IMPORT', true);
+ok('a path typed on its own is sent without the stray spaces', !!(await until(async () => (await log()).filter((x) => x[1] === '/api/import/rekordbox').some((x) => x[2].path === '/somewhere/else/master.db'))));
 
 ok('no request left the daemon and the app', page.external.length === 0, page.external.slice(0, 3).join(' '));
 console.log('console errors:', page.errors.slice(0, 5));

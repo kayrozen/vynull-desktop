@@ -498,6 +498,17 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         });
     });
 
+    // When the list is a different list (another source, a search, a tag filter, a sort) it starts at
+    // the top: the element is scrolled there, not only the signal that mirrors it, or the rows drawn
+    // for the top fall outside the part that is shown and the list looks empty until a scroll.
+    use_effect(move || {
+        let _ = (source(), q(), tag_sel(), tag_all(), sort());
+        scroll_top.set(0.0);
+        spawn(async move {
+            crate::dom::scroll_list_to_top(".lib .rows").await;
+        });
+    });
+
     let sugs = use_memo(move || -> Vec<SugView> {
         if !sug_open() {
             return Vec::new();
@@ -601,9 +612,9 @@ pub fn Library(feed: Feed, lib: Signal<LibState>, route: Signal<Route>) -> Eleme
         })
         .collect();
 
-    let first = ((scroll_top() / row_h) as usize)
-        .saturating_sub(OVERSCAN)
-        .min(shown);
+    // Never draw past the end: a scroll position left over from a longer list must not leave an empty window.
+    let top = scroll_top().min((shown as f64 * row_h - row_h).max(0.0));
+    let first = ((top / row_h) as usize).saturating_sub(OVERSCAN).min(shown);
     let last = (first + (VIEW_H / row_h) as usize + 2 * OVERSCAN).min(shown);
 
     let tag_dots = |t: &TrackInfo| -> Vec<String> {
