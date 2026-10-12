@@ -15,3 +15,8 @@ depends = ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libasound2 | libasound2t64"]
 
 [bundle.rpm]
 depends = ["webkit2gtk4.1", "gtk3", "alsa-lib"]
+
+[bundle.windows]
+# dx embeds the full 190 MB WebView2 runtime installer by default. The small bootstrapper (about 2 MB) is enough:
+# Windows 11 and current Windows 10 already have WebView2, and it only downloads the runtime when it is missing.
+webview_install_mode = { EmbedBootstrapper = { silent = false } }

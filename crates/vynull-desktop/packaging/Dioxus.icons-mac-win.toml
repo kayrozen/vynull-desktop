@@ -9,3 +9,8 @@ short_description = "A client for the Vynull DJ library daemon"
 long_description = "Browse and edit a Vynull library, follow the decks on the Pro DJ Link network, and edit beat grids, cues and playlists from a desktop window."
 category = "Music"
 copyright = "MIT licensed"
+
+[bundle.windows]
+# dx embeds the full 190 MB WebView2 runtime installer by default. The small bootstrapper (about 2 MB) is enough:
+# Windows 11 and current Windows 10 already have WebView2, and it only downloads the runtime when it is missing.
+webview_install_mode = { EmbedBootstrapper = { silent = false } }
