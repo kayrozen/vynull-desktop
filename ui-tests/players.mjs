@@ -93,8 +93,8 @@ ok('loading tracks brings the rows back', !!(await until(async () => (await stac
 const a = info.phd;
 await sleep(1500);
 const b = await page.evaluate(() => [...document.querySelectorAll('.phd')].map((e) => parseFloat(e.style.left)));
-// A deck that has reached the end of its track stays at 100% (a slow runner gets there before this check).
-ok('playheads of playing decks move, the cued one does not', b[0] > a[0] && (b[2] > a[2] || a[2] >= 100) && b[1] === a[1], `${a.join(',')} -> ${b.join(',')}`);
+// The fake decks loop their track, so a playing deck that wrapped between the two readings went back: it still moved.
+ok('playheads of playing decks move, the cued one does not', b[0] !== a[0] && b[2] !== a[2] && b[1] === a[1], `${a.join(',')} -> ${b.join(',')}`);
 
 // fonts: bundled, so nothing is fetched from outside and the faces are in use
 const fonts = await page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/"/g, '')); });

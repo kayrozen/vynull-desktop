@@ -126,6 +126,8 @@ def players():
         d = BY_ID.get(tid)
         beat_len = 60.0 / bpm
         elapsed = start + (t if playing else 0)
+        if d and playing:
+            elapsed %= d["duration"]  # a long test run loops the track instead of parking the deck at its end
         beats = int(elapsed / beat_len) + 1
         age = int((elapsed % beat_len) * 1000) if playing else 0
         out.append({
