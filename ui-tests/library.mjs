@@ -319,6 +319,14 @@ await page.evaluate(() => { const r = [...document.querySelectorAll('.colp .cr')
 await sleep(300);
 const hdr1 = await page.evaluate(() => [...document.querySelectorAll('.lh .hc')].map((e) => e.textContent.trim()));
 ok('hiding a column removes it', hdr0.includes('GENRE') && !hdr1.includes('GENRE'));
+const ovToggle = () => page.evaluate(() => { const r = [...document.querySelectorAll('.colp .cr')].find((x) => x.querySelector('.n').textContent === 'OVERVIEW'); r.querySelector('.tg').click(); });
+const ovCell = () => page.evaluate(() => { const c = document.querySelector('.rw .c-w'); const b = c.getBoundingClientRect(); return { d: getComputedStyle(c).display, w: Math.round(b.width), h: !![...document.querySelectorAll('.lh .hc')].find((e) => e.textContent.trim() === 'OVERVIEW') }; });
+await ovToggle(); await sleep(300);
+const ovOff = await ovCell();
+ok('hiding OVERVIEW hides its cells', ovOff.d === 'none' && !ovOff.h, JSON.stringify(ovOff));
+await ovToggle(); await sleep(300);
+const ovOn = await ovCell();
+ok('showing OVERVIEW again brings its cells back', ovOn.d === 'block' && ovOn.w > 50 && ovOn.h, JSON.stringify(ovOn));
 await page.evaluate(() => { const r = [...document.querySelectorAll('.colp .cr')].find((x) => x.querySelector('.n').textContent === 'RATING'); r.querySelectorAll('button')[0].click(); });
 await sleep(300);
 const ord = await page.evaluate(() => { const rw = document.querySelector('.rw'); return [getComputedStyle(rw.querySelector('.c-r')).order, getComputedStyle(rw.querySelector('.c-m')).order].map(Number); });

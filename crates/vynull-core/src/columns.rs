@@ -109,6 +109,14 @@ impl Col {
         }
     }
 
+    /// The CSS `display` of the column's cells when shown.
+    fn shown(self) -> &'static str {
+        match self {
+            Col::Color | Col::Rating | Col::Load => "flex",
+            _ => "block",
+        }
+    }
+
     pub fn resizable(self) -> bool {
         self.default_width().is_some()
     }
@@ -221,7 +229,17 @@ impl Columns {
             .enumerate()
             .map(|(i, c)| format!("--o-{}:{}", c.css(), i + 1))
             .collect();
-        parts.extend(self.hidden.iter().map(|c| format!("--v-{}:none", c.css())));
+        // Every column states its display, shown or not: the UI updates a `style` string property by
+        // property and never removes one the new string leaves out, so a column hidden once would
+        // stay hidden after being shown again.
+        parts.extend(Col::ALL.iter().map(|c| {
+            let d = if self.hidden.contains(c) {
+                "none"
+            } else {
+                c.shown()
+            };
+            format!("--v-{}:{d}", c.css())
+        }));
         parts.extend(
             Col::ALL
                 .iter()
@@ -277,6 +295,12 @@ mod tests {
         let v = c.css_vars(104);
         assert!(v.starts_with("--o-color:1;--o-art:2;--o-track:3;"));
         assert!(v.contains("--v-overview:none"));
+        assert!(v.contains("--v-genre:block") && v.contains("--v-rating:flex"));
+        c.toggle(Col::Overview);
+        assert!(
+            c.css_vars(104).contains("--v-overview:block"),
+            "showing a column again must say so"
+        );
         assert!(v.contains("--w-bpm:80px"));
         assert!(v.contains("--w-comment:220px"));
         assert!(v.ends_with("--w-load:104px"));
