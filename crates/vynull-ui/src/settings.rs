@@ -204,7 +204,7 @@ fn WebSection() -> Element {
             }
             AccentRow { look, set_look }
             div { class: "sr",
-                div { class: "sl", b { "Row density" } span { "Compact rows hide the artist line in the library." } }
+                div { class: "sl", b { "Row density" } span { "Compact rows are shorter and use smaller text in the library." } }
                 div { class: "seg",
                     button { class: if !l.compact { "on" } else { "" }, onclick: move |_| set_look.call(Look { compact: false, ..look() }), "COMFORT" }
                     button { class: if l.compact { "on" } else { "" }, onclick: move |_| set_look.call(Look { compact: true, ..look() }), "COMPACT" }

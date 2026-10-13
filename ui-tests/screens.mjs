@@ -221,6 +221,13 @@ ok('settings: AUTO takes the daemon waveform color (rgb here)', !!(await until((
 await page.screenshot({ path: 'ui-day-settings.png' });
 await btn('.pgs .seg button', 'COMPACT', true);
 ok('settings: COMPACT turns on compact rows', await page.evaluate(() => document.querySelector('.app').classList.contains('compact')));
+await openTab(page, 'LIBRARY');
+await page.waitForSelector('.lib .rw .sub');
+await sleep(300);
+ok('compact rows still show the artist, inside the row', await page.evaluate(() => { const rw = document.querySelector('.lib .rw'); const s = rw.querySelector('.sub span'); const a = rw.getBoundingClientRect(), b = s.getBoundingClientRect(); return s.textContent.trim().length > 0 && b.height > 8 && b.top >= a.top && b.bottom <= a.bottom + 0.5; }));
+await page.screenshot({ path: 'ui-compact.png' });
+await openTab(page, 'SETTINGS');
+await page.waitForSelector('.pgs .ni');
 await btn('.pgs .bnd', 'KICK');
 await page.evaluate(() => document.querySelector('.pgs .sw2 button[aria-label="#FF6B6B"]').click());
 ok('settings: a band color is picked from the swatches', await page.evaluate(() => JSON.parse(localStorage.getItem('vynull.wave')).lo === '#FF6B6B'));

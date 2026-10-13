@@ -204,7 +204,9 @@
 .lib select.in{width:100%}
 /* Compact rows: 48 px, no artist line, a smaller cover and waveform. */
 .app.compact .lib .c-a{width:34px;height:34px}
-.app.compact .lib .c-t .sub{display:none}
+.app.compact .lib .c-t .ttl{font-size:14px;line-height:19px}
+.app.compact .lib .c-t .sub{font-size:12px;line-height:16px}
+.app.compact .lib .c-t .mt{display:none}
 .app.compact .lib .c-w{height:26px}
 .app.compact .lib .ldb,.app.compact .lib .dkb{width:36px;height:36px}
 
