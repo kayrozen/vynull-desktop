@@ -1283,7 +1283,7 @@ fn Row(props: RowProps) -> Element {
         if t.bpm > 0.0 { "&a=1" } else { "" }
     ));
     let border = if props.selected {
-        "#FFC15A"
+        "var(--ac)"
     } else {
         "transparent"
     };

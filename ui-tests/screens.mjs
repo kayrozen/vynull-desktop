@@ -87,7 +87,7 @@ await page.waitForSelector('.pgs .card');
 await sleep(500);
 ok('settings: the URL names the screen', (await hash()) === '#/settings');
 ok('settings: the live-edit banner shows', await page.evaluate(() => /LAST WRITE WINS/.test(document.querySelector('.pgs .note').textContent)));
-ok('settings: seven sections', (await page.evaluate(() => [...document.querySelectorAll('.pgs .ni')].map((b) => b.textContent))).join() === 'WEB UI,LIBRARY SOURCE,STREAM OVERLAY,PLAYER MENU,MYSETTING,DJMMYSETTING,DEVSETTING');
+ok('settings: eight sections', (await page.evaluate(() => [...document.querySelectorAll('.pgs .ni')].map((b) => b.textContent))).join() === 'WEB UI,LIBRARY SOURCE,STREAM OVERLAY,DIAG,PLAYER MENU,MYSETTING,DJMMYSETTING,DEVSETTING');
 const section = (n) => page.evaluate((x) => [...document.querySelectorAll('.pgs .ni')].find((b) => b.textContent === x).click(), n);
 
 // WEB UI is the section that opens first
@@ -160,12 +160,47 @@ await btn('.pgs .btn', 'CONFIRM RE-IMPORT');
 ok('settings: and then reads the tags again', !!(await until(async () => (await writes('POST', '/api/tracks/reimport')).length === 1)));
 ok('settings: the options the API lacks are explained', await page.evaluate(() => /--music-dir/.test(document.body.innerText)));
 
-// STREAM OVERLAY link
+// STREAM OVERLAY is the whole overlay screen, inside Settings
 await section('STREAM OVERLAY');
+await page.waitForSelector('.pgs .pgo .stage');
+ok('settings: the overlay editor is a section here (and has its own address)', (await hash()) === '#/overlay' && await page.evaluate(() => !!document.querySelector('.pgs .pgo .cfg')));
 ok('settings: the overlay address is shown', await page.evaluate(() => document.querySelector('.pgs input[aria-label="Overlay address"]').value.endsWith('/overlay')));
 
 // WEB UI
 await section('WEB UI');
+// accent color
+const acc = () => page.evaluate(() => getComputedStyle(document.querySelector('.app')).getPropertyValue('--ac').trim().toUpperCase());
+const stor = () => page.evaluate(() => JSON.parse(localStorage.getItem('vynull.look') || '{}').accent || '');
+ok('accent: amber by default', (await acc()) === '#FFC15A' && (await stor()) === '');
+ok('accent: six presets', await page.evaluate(() => document.querySelectorAll('.pgs .acc .sw2 button').length === 6));
+await page.evaluate(() => document.querySelector('.pgs .acc .sw2 button[aria-label="Teal"]').click());
+ok('accent: a preset recolors the app at once', !!(await until(async () => (await acc()) === '#3FD6C0')) && (await stor()) === '#3FD6C0');
+ok('accent: buttons, tabs and the gear follow it', await page.evaluate(() => { const on = (s) => getComputedStyle(document.querySelector(s)).borderColor; const rgb = 'rgb(63, 214, 192)'; return on('.gear.on') === rgb && getComputedStyle(document.querySelector('.pgs .seg button.on')).backgroundColor === rgb; }));
+await page.focus('.pgs input[aria-label="Accent color, hex"]');
+await page.keyboard.down('Control'); await page.keyboard.press('KeyA'); await page.keyboard.up('Control');
+await page.keyboard.type('#ff00aa');
+await sleep(150);
+const typedField = await page.evaluate(() => document.querySelector('.pgs input[aria-label="Accent color, hex"]').value);
+await page.keyboard.press('Enter');
+await page.evaluate(() => document.querySelector('.pgs input[aria-label="Accent color, hex"]').blur());
+ok('accent: a typed hex color is used', !!(await until(async () => (await acc()) === '#FF00AA')) && (await stor()) === '#FF00AA', `${await acc()} ${await stor()} typed=${typedField}`);
+const wb = await (await page.$('.pgs .wheel')).boundingBox();
+await page.mouse.move(wb.x + wb.width / 2, wb.y + 6);
+await page.mouse.down();
+await page.mouse.up();
+ok('accent: the wheel picks a color (top edge is red)', !!(await until(async () => (([r, g, b]) => r > 150 && g < 60 && b < 60)((await acc()).match(/[0-9A-F]{2}/g).map((h) => parseInt(h, 16))))), await acc());
+await page.mouse.move(wb.x + wb.width / 2 + 40, wb.y + wb.height / 2);
+await page.mouse.down();
+await page.mouse.move(wb.x + wb.width / 2, wb.y + wb.height / 2 + 40, { steps: 5 });
+await page.mouse.up();
+const dragged = await acc();
+ok('accent: dragging on the wheel changes it (right, then bottom = cyan-ish)', dragged !== '#FF00AA' && (await stor()).toUpperCase() === dragged, dragged);
+await page.evaluate(() => { const r = document.querySelector('.pgs input[aria-label="Accent brightness"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(r, '30'); r.dispatchEvent(new Event('input', { bubbles: true })); });
+ok('accent: the brightness slider darkens it, text on it turns light', !!(await until(async () => { const c = (await acc()).match(/[0-9A-F]{2}/g).map((h) => parseInt(h, 16)); return Math.max(...c) < 120; })) && await page.evaluate(() => getComputedStyle(document.querySelector('.app')).getPropertyValue('--ac-on').trim().toUpperCase() === '#FFFFFF'));
+await page.evaluate(() => [...document.querySelectorAll('.pgs .btn')].find((b) => b.textContent === 'RESET').click());
+ok('accent: RESET returns to amber', !!(await until(async () => (await acc()) === '#FFC15A')) && (await stor()) === '', `${await acc()} [${await stor()}]`);
+await page.evaluate(() => document.querySelector('.pgs .acc .sw2 button[aria-label="Orange"]').click());
+await sleep(200);
 await page.waitForSelector('.pgs .wpv');
 ok('settings: night is the default theme', await page.evaluate(() => !document.querySelector('.app').classList.contains('day')));
 const bg = () => page.evaluate(() => getComputedStyle(document.querySelector('.app')).backgroundColor);

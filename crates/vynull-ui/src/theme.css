@@ -1,5 +1,5 @@
 /* Colors: night is the default; `.day` is the light palette (not in the mockup: chosen here). */
-.app{--bg:#0E1116;--surface:#161B22;--surface2:#0F141B;--hover:#1B2430;--hover2:#2A3444;--row-hover:#131921;--chip:#222A35;--line:#2A313C;--line2:#3A4350;--line3:#1D2430;--text:#E8ECF1;--mut:#9AA4B2;--faint:#6B7482;--accent-text:#FFC15A;--deep:#0B0F14;--row-h:64px}
+.app{--ac:#FFC15A;--ac-on:#05070A;--bg:#0E1116;--surface:#161B22;--surface2:#0F141B;--hover:#1B2430;--hover2:#2A3444;--row-hover:#131921;--chip:#222A35;--line:#2A313C;--line2:#3A4350;--line3:#1D2430;--text:#E8ECF1;--mut:#9AA4B2;--faint:#6B7482;--accent-text:var(--ac);--deep:#0B0F14;--row-h:64px}
 .app.day{--bg:#F4F5F7;--surface:#FFFFFF;--surface2:#EEF0F3;--hover:#E6EAF0;--hover2:#DDE2EA;--row-hover:#EBEEF2;--chip:#E9ECF1;--line:#D5DAE1;--line2:#C3CAD4;--line3:#E3E7EC;--text:#1A1F26;--mut:#5B6675;--faint:#8A94A3;--accent-text:#8A5200;--deep:#E9ECF1}
 .app.compact{--row-h:48px}
 /* Design tokens and shared styles, copied from the mockup (Players page). Later screens append their own rules below. */
@@ -20,13 +20,13 @@ a{color:inherit;text-decoration:none}
 .tab{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;box-sizing:border-box;border-radius:10px;color:var(--mut);font-size:13px;letter-spacing:.08em;font-weight:500;white-space:nowrap}
 .tab svg{width:20px;height:20px;flex:none}
 .tab:hover{background:var(--hover);color:var(--text)}
-.tab.on{background:var(--hover);color:var(--accent-text);box-shadow:inset 0 -2px 0 #FFC15A}
+.tab.on{background:var(--hover);color:var(--accent-text);box-shadow:inset 0 -2px 0 var(--ac)}
 .chip{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:99px;background:var(--chip);font-size:13px;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:#5FD38D;flex:none}
 .dot.off{background:var(--faint)}
 .btn{height:44px;min-width:44px;box-sizing:border-box;padding:0 18px;border-radius:10px;border:1px solid var(--line2);background:var(--chip);display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:500;font-size:14px;white-space:nowrap}
 .btn:hover{border-color:var(--faint)}
-.btn.on{background:#FFC15A;border-color:#FFC15A;color:#05070A;font-weight:600}
+.btn.on{background:var(--ac);border-color:var(--ac);color:var(--ac-on);font-weight:600}
 .btn.dg{border-color:#8A3F3F;color:#FF9A9A;background:#2A1A1D}
 .pg{flex:1;padding:24px;display:flex;flex-direction:column;gap:20px}
 .hd{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px}
@@ -45,9 +45,9 @@ a{color:inherit;text-decoration:none}
 .pn{font-family:Cousine,monospace;font-size:26px;font-weight:700;color:var(--accent-text);line-height:1}
 .bdg{font-family:Cousine,monospace;font-size:12px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:5px;background:var(--line);color:var(--text);white-space:nowrap}
 .bdg.pl{background:#5FD38D;color:#05070A}
-.bdg.cu{background:#FFC15A;color:#05070A}
+.bdg.cu{background:var(--ac);color:var(--ac-on)}
 .bdg.ms{background:#3FD6C0;color:#05070A}
-.bdg.ex{background:none;border:1px dashed #FFC15A;color:var(--accent-text)}
+.bdg.ex{background:none;border:1px dashed var(--ac);color:var(--accent-text)}
 .pb{display:flex;gap:14px;align-items:center}
 .art{flex:none;width:72px;height:72px;border-radius:8px}
 .pt{flex:1;min-width:0}
@@ -62,7 +62,7 @@ a{color:inherit;text-decoration:none}
 .ov{position:relative;height:64px;background:#0B0F14;border-radius:6px;overflow:hidden}
 .ov svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
 .past{position:absolute;left:0;top:0;bottom:0;background:rgba(5,7,10,.55)}
-.phd{position:absolute;top:0;bottom:0;width:2px;background:#FFC15A}
+.phd{position:absolute;top:0;bottom:0;width:2px;background:var(--ac)}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
 .acts .btn{flex:1 1 120px}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:196px;border:1px dashed var(--line2);border-radius:10px;color:var(--mut);font-family:Cousine,monospace;letter-spacing:.08em;font-size:13px}
@@ -82,7 +82,7 @@ a{color:inherit;text-decoration:none}
 .conn{width:min(520px,calc(100% - 32px));box-sizing:border-box;margin:12vh auto 0;display:flex;flex-direction:column;gap:14px}
 .conn label{display:flex;flex-direction:column;gap:6px;font-family:Cousine,monospace;font-size:12px;letter-spacing:.06em;color:var(--mut)}
 .conn input{height:44px;box-sizing:border-box;padding:0 12px;border-radius:10px;border:1px solid var(--line2);background:var(--surface2);font-size:15px}
-.conn input:focus{outline:none;border-color:#FFC15A}
+.conn input:focus{outline:none;border-color:var(--ac)}
 .conn .err{color:#FF9A9A;font-size:13px}
 .conn.inst{margin-top:16px;margin-bottom:40px;font-size:14px;line-height:1.45;color:var(--mut)}
 .conn.inst p{margin:0}
@@ -125,5 +125,10 @@ a{color:inherit;text-decoration:none}
 .stk .skcue{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#FF6B6B}
 .stk .skno{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Cousine,monospace;font-size:12px;letter-spacing:.08em;color:var(--faint)}
 /* one centre line across the whole stack, over the waveform area (the labels are 96px plus a 10px gap) */
-.stk .skcl{position:absolute;top:0;bottom:0;left:calc(106px + (100% - 106px) / 2);width:2px;margin-left:-1px;background:#FFC15A;pointer-events:none;z-index:2}
+.stk .skcl{position:absolute;top:0;bottom:0;left:calc(106px + (100% - 106px) / 2);width:2px;margin-left:-1px;background:var(--ac);pointer-events:none;z-index:2}
 @keyframes skin{from{opacity:0;height:0}to{opacity:1;height:68px}}
+
+.gear{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;box-sizing:border-box;border-radius:10px;border:1px solid var(--line2);background:var(--chip);color:var(--mut);cursor:pointer;padding:0}
+.gear svg{width:22px;height:22px}
+.gear:hover{color:var(--text)}
+.gear.on{color:var(--accent-text);border-color:var(--ac)}

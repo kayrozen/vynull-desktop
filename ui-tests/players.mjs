@@ -121,12 +121,13 @@ ok('the page uses Roboto and Cousine', await page.evaluate(() => getComputedStyl
 // navigation: tabs are URLs
 await openTab(page, 'DIAG');
 ok('a tab changes the URL', (await page.evaluate(() => location.hash)) === '#/diag');
-ok('the Diag screen opens', !!(await until(() => page.evaluate(() => /Runtime, library and analysis/.test(document.body.innerText)))));
+ok('the Diag screen opens', !!(await until(() => page.evaluate(() => /Refreshes every/.test(document.body.innerText) && document.querySelector(".pgs .ni.on")?.textContent === "DIAG"))));
+await page.goBack(); // the gear's Settings, then the Diag section
 await page.goBack();
 ok('back returns to the previous screen', !!(await until(() => page.evaluate(() => location.hash === '#/players' && !!document.querySelector('.pcs')))));
 await page.goto(APP + '/#/diag');
 await page.waitForSelector('.top');
-ok('opening a link lands on that screen', !!(await until(() => page.evaluate(() => /Runtime, library and analysis/.test(document.body.innerText)))));
+ok('opening a link lands on that screen', !!(await until(() => page.evaluate(() => /Refreshes every/.test(document.body.innerText) && document.querySelector(".pgs .ni.on")?.textContent === "DIAG"))));
 
 // reconnect: the stream shows when the daemon is gone
 ok('the connection chip changes the daemon', await page.evaluate(() => { const c = [...document.querySelectorAll('.top button.chip')][0]; c.click(); return true; }));

@@ -22,13 +22,13 @@
 .lib .seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
 .lib .seg button{height:44px;min-width:48px;padding:0 12px;border:0;background:var(--chip);font-family:Cousine,monospace;font-size:13px;color:var(--mut)}
 .lib .seg button+button{border-left:1px solid var(--line2)}
-.lib .seg button.on{background:#FFC15A;color:#05070A;font-weight:700}
+.lib .seg button.on{background:var(--ac);color:var(--ac-on);font-weight:700}
 .lib .btn.ib{width:44px;height:44px;padding:0}
 .lib .btn.ib svg{width:22px;height:22px}
 .lib .lay{flex:1;display:flex;flex-wrap:wrap;align-items:stretch}
 .lib .side{flex:0 0 250px;box-sizing:border-box;background:var(--surface2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 0}
 .lib .src{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 16px;font-family:Cousine,monospace;font-size:13px;letter-spacing:.05em;color:var(--mut);border:0;background:none;text-align:left;width:100%;box-sizing:border-box}
-.lib .src.on{background:var(--chip);color:var(--accent-text);box-shadow:inset 3px 0 0 #FFC15A}
+.lib .src.on{background:var(--chip);color:var(--accent-text);box-shadow:inset 3px 0 0 var(--ac)}
 .lib .src .n{margin-left:auto;font-size:12px}
 .lib .src.in1{padding-left:36px}
 .lib .sec{padding:14px 16px 6px;font-family:Cousine,monospace;font-size:11px;letter-spacing:.1em;color:var(--faint)}
@@ -36,7 +36,7 @@
 .lib .main{flex:999 1 520px;min-width:0;display:flex;flex-direction:column}
 .lib .bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line)}
 .lib .search{position:relative;display:flex;align-items:center;gap:8px;height:44px;flex:1 1 260px;max-width:520px;padding:0 6px 0 14px;border-radius:10px;border:1px solid var(--line2);background:var(--surface);box-sizing:border-box}
-.lib .search:focus-within{border-color:#FFC15A}
+.lib .search:focus-within{border-color:var(--ac)}
 .lib .search input{flex:1;min-width:0;border:0;background:none;outline:0;font-size:14px}
 .lib .clr{width:32px;height:32px;border-radius:8px;border:0;background:var(--chip);padding:0;display:flex;align-items:center;justify-content:center;flex:none}
 .lib .sug{position:absolute;left:0;right:0;top:calc(100% + 6px);min-width:340px;z-index:60;background:var(--hover);border:1px solid var(--line2);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.6);padding:6px;display:flex;flex-direction:column;gap:2px}
@@ -74,7 +74,7 @@
 .lib .c-m{flex:none;width:var(--w-time,56px);text-align:right;color:var(--mut);font-size:13px}
 .lib .c-r{flex:none;width:var(--w-rating,70px);display:flex;gap:3px}
 .lib .c-r i{width:8px;height:8px;border-radius:50%;background:var(--line)}
-.lib .c-r i.f{background:#FFC15A}
+.lib .c-r i.f{background:var(--ac)}
 .lib .c-w{flex:none;width:var(--w-overview,130px);height:34px;position:relative;background:#0B0F14;border-radius:4px;overflow:hidden}
 .lib .c-w svg{position:absolute;left:0;top:0;width:100%;height:100%}
 .lib .key{display:inline-block;min-width:44px;text-align:center;padding:2px 8px;border-radius:6px;font-size:14px;background:var(--chip)}
@@ -91,24 +91,24 @@
 .lib .c-ld{flex:none;width:var(--w-load,104px);display:flex;align-items:center;justify-content:center;gap:4px;position:relative}
 .lib .rw>.c-ld{order:var(--o-load,9);display:var(--v-load,flex)}
 .lib .ldb{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:var(--chip);display:inline-flex;align-items:center;justify-content:center;color:var(--text);cursor:pointer}
-.lib .ldb:hover{border-color:#FFC15A;color:var(--accent-text)}
-.lib .ldb.on{border-color:var(--accent-text);color:var(--accent-text);background:color-mix(in srgb,var(--chip) 85%,#FFC15A 15%)}
+.lib .ldb:hover{border-color:var(--ac);color:var(--accent-text)}
+.lib .ldb.on{border-color:var(--accent-text);color:var(--accent-text);background:color-mix(in srgb,var(--chip) 85%,var(--ac) 15%)}
 .lib .qbar{display:flex;align-items:center;gap:8px;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--surface2);font-family:Cousine,monospace;font-size:13px;letter-spacing:.05em}
 .lib .qbar .qt{color:var(--accent-text);display:inline-flex;align-items:center;gap:8px}
 .lib .rw.pd{opacity:.5}
 .lib .ldm{position:absolute;right:calc(100% + 4px);top:50%;transform:translateY(-50%);display:flex;gap:6px;padding:6px;background:var(--hover);border:1px solid var(--line2);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.6);z-index:30}
 .lib .dkb{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:var(--chip);display:inline-flex;align-items:center;justify-content:center;font-family:Cousine,monospace;font-weight:700;font-size:15px;color:var(--text);cursor:pointer;box-sizing:border-box;padding:0}
-.lib .dkb:hover{border-color:#FFC15A}
+.lib .dkb:hover{border-color:var(--ac)}
 .lib .dkb.pl{border-color:var(--accent-text);color:var(--accent-text)}
 .lib .dkb.em{color:var(--faint)}
 .lib .ldg{display:inline-flex;align-items:center;gap:6px}
 .lib .drg{position:absolute;left:0;right:0;height:18px;z-index:41;cursor:row-resize;touch-action:none;display:flex;align-items:center;justify-content:center}
 .lib .drg i{display:block;width:64px;height:5px;border-radius:3px;background:var(--line2)}
-.lib .drg:hover i{background:#FFC15A}
-.lib .toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:var(--hover);border:1px solid #FFC15A;box-shadow:0 14px 34px rgba(0,0,0,.6);font-family:Cousine,monospace;font-size:13px;letter-spacing:.04em}
+.lib .drg:hover i{background:var(--ac)}
+.lib .toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:var(--hover);border:1px solid var(--ac);box-shadow:0 14px 34px rgba(0,0,0,.6);font-family:Cousine,monospace;font-size:13px;letter-spacing:.04em}
 .lib .lh .hc{position:relative;cursor:pointer;user-select:none;height:auto;line-height:36px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lib .lh .rz{position:absolute;right:0;top:6px;bottom:6px;width:12px;cursor:col-resize;background:linear-gradient(var(--line2),var(--line2)) right/2px 100% no-repeat}
-.lib .lh .rz:hover{background-image:linear-gradient(#FFC15A,#FFC15A)}
+.lib .lh .rz:hover{background-image:linear-gradient(var(--ac),var(--ac))}
 .lib .lh .so{margin-left:4px;color:var(--accent-text);font-size:10px}
 .lib .lh .so sub{font-size:9px;margin-left:1px}
 .lib .lh .hc:active{cursor:grabbing}
@@ -123,8 +123,8 @@
 .lib .cr .btn.ib:hover{background:var(--chip)}
 .lib .tg{width:48px;height:28px;border-radius:99px;background:var(--line);position:relative;border:0;padding:0;flex:none;margin:0 6px}
 .lib .tg i{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--mut)}
-.lib .tg.on{background:#FFC15A}
-.lib .tg.on i{left:auto;right:4px;background:#05070A}
+.lib .tg.on{background:var(--ac)}
+.lib .tg.on i{left:auto;right:4px;background:var(--ac-on)}
 .lib .tg:disabled{opacity:.35}
 .lib .key.ok{background:#3FD6C0;color:#05070A;font-weight:600}
 .lib .key.y{background:#E8E05A;color:#05070A;font-weight:600}
@@ -132,9 +132,9 @@
 .lib .key.r{background:#FF6B6B;color:#05070A;font-weight:600}
 .lib .fl{display:inline-block;font-family:Cousine,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:4px;margin-left:8px;vertical-align:middle}
 .lib .fl.rd{background:#FF6B6B;color:#05070A}
-.lib .fl.am{background:none;border:1px solid #FFC15A;color:var(--accent-text)}
+.lib .fl.am{background:none;border:1px solid var(--ac);color:var(--accent-text)}
 .lib .none{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 20px;color:var(--mut);font-family:Cousine,monospace;letter-spacing:.08em;font-size:13px}
-.lib .drw{position:absolute;left:0;right:0;bottom:0;z-index:40;height:50%;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -18px 40px rgba(0,0,0,.6);border-top:2px solid #FFC15A;background:var(--surface);display:flex;flex-direction:column;gap:14px;padding:16px 24px 24px}
+.lib .drw{position:absolute;left:0;right:0;bottom:0;z-index:40;height:50%;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -18px 40px rgba(0,0,0,.6);border-top:2px solid var(--ac);background:var(--surface);display:flex;flex-direction:column;gap:14px;padding:16px 24px 24px}
 .lib .dh{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px}
 .lib .dh .art{width:56px;height:56px;border-radius:8px;flex:none}
 .lib .dh .art{position:relative;overflow:hidden}
@@ -148,12 +148,12 @@
 .lib .bj{display:flex;gap:6px;flex-wrap:wrap}
 .lib .zw{position:relative;height:180px;background:var(--wavebg);border-radius:6px;overflow:hidden}
 .lib .zw svg,.lib .ovw svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
-.lib .ph{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#FFC15A}
+.lib .ph{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:var(--ac)}
 .lib .bn{position:absolute;top:2px;font-family:Cousine,monospace;font-size:11px;color:var(--text);padding-left:3px;opacity:.8}
 .lib .fg{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px}
 .lib .fg span{position:absolute;top:14px;left:2px;min-width:18px;height:18px;border-radius:0 4px 4px 0;font-family:Cousine,monospace;font-weight:700;font-size:11px;color:#05070A;display:flex;align-items:center;justify-content:center;padding:0 3px}
 .lib .ovw{position:relative;height:56px;background:var(--ovbg);border-radius:6px;overflow:hidden}
-.lib .vp{position:absolute;top:0;bottom:0;border:2px solid #FFC15A;box-sizing:border-box;background:rgba(255,193,90,.28)}
+.lib .vp{position:absolute;top:0;bottom:0;border:2px solid var(--ac);box-sizing:border-box;background:color-mix(in srgb,var(--ac) 28%,transparent)}
 .lib .g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
 .lib .card{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .lib .fld{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -161,14 +161,14 @@
 .lib .fld label.w{grid-column:1 / -1}
 .lib .in{height:40px;box-sizing:border-box;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:var(--surface);font-family:Roboto,sans-serif;font-size:14px;color:var(--text);min-width:0}
 .lib .pr2{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
-.lib .pr2 .btn.ib.act{background:#FFC15A;border-color:#FFC15A;color:#05070A}
+.lib .pr2 .btn.ib.act{background:var(--ac);border-color:var(--ac);color:var(--ac-on)}
 .lib .pr2 .wavb{font-family:Cousine,monospace;font-size:12px;letter-spacing:.05em}
-.lib .pr2 .wavb.act{background:#FFC15A;border-color:#FFC15A;color:#05070A;font-weight:700}
+.lib .pr2 .wavb.act{background:var(--ac);border-color:var(--ac);color:var(--ac-on);font-weight:700}
 .lib .vol{display:inline-flex;align-items:center;gap:6px}
 .lib .vr{-webkit-appearance:none;appearance:none;width:110px;height:44px;background:transparent;margin:0;cursor:pointer}
-.lib .vr::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:linear-gradient(90deg,#FFC15A var(--p,80%),var(--line) var(--p,80%))}
+.lib .vr::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:linear-gradient(90deg,var(--ac) var(--p,80%),var(--line) var(--p,80%))}
 .lib .vr::-moz-range-track{height:5px;border-radius:3px;background:var(--line)}
-.lib .vr::-moz-range-progress{height:5px;border-radius:3px;background:#FFC15A}
+.lib .vr::-moz-range-progress{height:5px;border-radius:3px;background:var(--ac)}
 .lib .vr::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--text);border:0;margin-top:-6.5px}
 .lib .vr::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--text);border:0}
 .lib .pad{min-width:44px;height:44px;padding:0 10px;border-radius:10px;border:2px solid transparent;font-family:Cousine,monospace;font-weight:700;font-size:15px;color:#05070A}
@@ -227,7 +227,7 @@
 .lib .rw.ed{cursor:grab;touch-action:none;user-select:none}
 .lib .rw.ed:hover{outline:1px dashed var(--line2);outline-offset:-2px}
 .lib .rw.dg{opacity:.45}
-.lib .dropline{position:absolute;left:0;right:0;height:3px;margin-top:-2px;background:#FFC15A;border-radius:2px;z-index:3;pointer-events:none;box-shadow:0 0 8px rgba(255,193,90,.7)}
+.lib .dropline{position:absolute;left:0;right:0;height:3px;margin-top:-2px;background:var(--ac);border-radius:2px;z-index:3;pointer-events:none;box-shadow:0 0 8px rgba(255,193,90,.7)}
 .lib .c-g,.lib .c-b,.lib .c-k,.lib .c-m{box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib .c-k .key{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box}
 .lib .src .ic{flex:none;width:18px;height:18px}

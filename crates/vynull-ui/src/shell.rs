@@ -13,6 +13,7 @@ use crate::live::{use_feed, Feed, Link};
 use crate::nav;
 use crate::players::Players;
 use crate::prefs::{CueColors, Locks, Look, Saved, WaveColors, CONNECTION, VOCAL_KEY};
+use vynull_core::accent;
 use vynull_core::phrase::Vocal;
 
 const THEME: &str = include_str!("theme.css");
@@ -32,8 +33,6 @@ pub enum Tab {
     Library,
     Tags,
     Settings,
-    Diag,
-    Overlay,
 }
 
 impl From<Page> for Tab {
@@ -42,9 +41,8 @@ impl From<Page> for Tab {
             Page::Players => Tab::Players,
             Page::Library => Tab::Library,
             Page::Tags => Tab::Tags,
-            Page::Settings => Tab::Settings,
-            Page::Diag => Tab::Diag,
-            Page::Overlay => Tab::Overlay,
+            // Diag and Overlay are sections of Settings.
+            Page::Settings | Page::Diag | Page::Overlay => Tab::Settings,
         }
     }
 }
@@ -56,21 +54,13 @@ impl From<Tab> for Page {
             Tab::Library => Page::Library,
             Tab::Tags => Page::Tags,
             Tab::Settings => Page::Settings,
-            Tab::Diag => Page::Diag,
-            Tab::Overlay => Page::Overlay,
         }
     }
 }
 
 impl Tab {
-    const ALL: [Tab; 6] = [
-        Tab::Players,
-        Tab::Library,
-        Tab::Tags,
-        Tab::Settings,
-        Tab::Diag,
-        Tab::Overlay,
-    ];
+    /// The tabs in the bar; Settings is the gear beside the connection button.
+    const ALL: [Tab; 3] = [Tab::Players, Tab::Library, Tab::Tags];
 
     fn label(self) -> &'static str {
         match self {
@@ -78,8 +68,6 @@ impl Tab {
             Tab::Library => "LIBRARY",
             Tab::Tags => "TAGS",
             Tab::Settings => "SETTINGS",
-            Tab::Diag => "DIAG",
-            Tab::Overlay => "OVERLAY",
         }
     }
 
@@ -90,11 +78,11 @@ impl Tab {
             Tab::Library => "M4 6h16M4 12h16M4 18h10",
             Tab::Tags => "M20 12l-8 8-9-9V3h8zM7.5 7.5h.01",
             Tab::Settings => "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4",
-            Tab::Diag => "M4 19V5M4 19h16M8 15l3-4 3 2 4-6",
-            Tab::Overlay => "M3 5h18v12H3zM8 21h8M12 17v4",
         }
     }
 }
+
+const GEAR: &str = "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
 
 #[derive(Clone, PartialEq)]
 enum Phase {
@@ -180,7 +168,7 @@ pub fn App() -> Element {
         document::Style { {THEME} }
         document::Style { {LIBRARY_CSS} }
         document::Style { {SCREENS_CSS} }
-        div { class: "{look().classes()}", style: "{colors().effective(&daemon_wave()).css_vars(look().day)}",
+        div { class: "{look().classes()}", style: "{colors().effective(&daemon_wave()).css_vars(look().day)};{accent::css_vars(&look().accent, look().day)}",
             match phase() {
                 Phase::Starting => rsx! {
                     div { class: "conn", span { class: "mono mut", "CONNECTING…" } }
@@ -295,9 +283,14 @@ fn Connected(base: String, initial: Route, on_change: EventHandler<()>) -> Eleme
                 main { class: "pg", Players { feed, base: base.clone(), goto: go } }
             },
             Tab::Tags => rsx! { crate::tags::Tags { lib } },
-            Tab::Settings => rsx! { crate::settings::Settings { base: base.clone(), goto: go } },
-            Tab::Diag => rsx! { crate::diag::Diag { linked: (feed.polled)().linked } },
-            Tab::Overlay => rsx! { crate::overlay::OverlayScreen { base: base.clone() } },
+            Tab::Settings => rsx! {
+                crate::settings::Settings {
+                    base: base.clone(),
+                    page: route().page,
+                    linked: (feed.polled)().linked,
+                    on_page: move |p: Page| route.set(Route::page(p)),
+                }
+            },
         }
     }
 }
@@ -355,6 +348,22 @@ fn TopBar(
                 span { class: "chip mono", "{d}" }
             }
             button { class: "chip mono", title: "Change daemon", onclick: move |_| on_change.call(()), "{addr}" }
+            button {
+                class: if tab == Tab::Settings { "gear on" } else { "gear" },
+                title: "Settings",
+                "aria-label": "Settings",
+                onclick: move |_| on_tab.call(Tab::Settings),
+                svg {
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    circle { cx: "12", cy: "12", r: "3" }
+                    path { d: "{GEAR}" }
+                }
+            }
         }
     }
 }

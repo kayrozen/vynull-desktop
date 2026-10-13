@@ -12,18 +12,21 @@ use dioxus::prelude::*;
 use serde_json::{json, Value};
 use vynull_api::{MenuItem, MenuItems, MenuItemsPatch};
 use vynull_core::settings::{self, End, Sub};
-use vynull_core::{grid, overlay, palette, waveform};
+use vynull_core::{grid, palette, waveform};
 use vynull_platform::StoreExt;
 
 use crate::prefs::{CueColors, Look, WaveColors, AUTO, VOCAL_KEY};
-use crate::shell::{ClientCtx, LookCtx, Platform, Tab};
+use crate::shell::{ClientCtx, LookCtx, Platform};
+use vynull_core::accent;
 use vynull_core::phrase::Vocal;
+use vynull_core::route::Page;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
     Web,
     Source,
     Overlay,
+    Diag,
     Menu,
     My,
     Djm,
@@ -31,10 +34,11 @@ enum Section {
 }
 
 impl Section {
-    const ALL: [Section; 7] = [
+    const ALL: [Section; 8] = [
         Section::Web,
         Section::Source,
         Section::Overlay,
+        Section::Diag,
         Section::Menu,
         Section::My,
         Section::Djm,
@@ -46,6 +50,7 @@ impl Section {
             Section::Web => "WEB UI",
             Section::Source => "LIBRARY SOURCE",
             Section::Overlay => "STREAM OVERLAY",
+            Section::Diag => "DIAG",
             Section::Menu => "PLAYER MENU",
             Section::My => "MYSETTING",
             Section::Djm => "DJMMYSETTING",
@@ -58,6 +63,7 @@ impl Section {
             Section::Web => "Web UI",
             Section::Source => "Library source",
             Section::Overlay => "Stream overlay",
+            Section::Diag => "Diagnostics",
             Section::Menu => "Player menu",
             Section::My => "Player settings",
             Section::Djm => "Mixer settings",
@@ -76,15 +82,34 @@ fn preset(name: &str) -> WaveColors {
 }
 
 #[component]
-pub fn Settings(base: String, goto: EventHandler<Tab>) -> Element {
-    let mut section = use_signal(|| Section::Web);
+pub fn Settings(
+    base: String,
+    page: Page,
+    linked: Option<bool>,
+    on_page: EventHandler<Page>,
+) -> Element {
+    let mut chosen = use_signal(|| Section::Web);
+    // Diag and Overlay have their own addresses (`#/diag`, `#/overlay`), so a link or a reload lands on them.
+    let section = move || match page {
+        Page::Diag => Section::Diag,
+        Page::Overlay => Section::Overlay,
+        _ => chosen(),
+    };
+    let mut pick = move |s: Section| {
+        chosen.set(s);
+        on_page.call(match s {
+            Section::Diag => Page::Diag,
+            Section::Overlay => Page::Overlay,
+            _ => Page::Settings,
+        });
+    };
     rsx! {
         div { class: "pgs",
             div { class: "note", "EDIT TO PUSH LIVE.  PLAYER CHANGES FLOW BACK AUTOMATICALLY.  LAST WRITE WINS." }
             div { class: "lay",
                 nav { class: "nav", "aria-label": "Settings sections",
                     for s in Section::ALL {
-                        button { key: "{s.label()}", class: if s == section() { "ni on" } else { "ni" }, onclick: move |_| section.set(s), "{s.label()}" }
+                        button { key: "{s.label()}", class: if s == section() { "ni on" } else { "ni" }, onclick: move |_| pick(s), "{s.label()}" }
                     }
                 }
                 section { class: "cnt",
@@ -92,7 +117,8 @@ pub fn Settings(base: String, goto: EventHandler<Tab>) -> Element {
                     match section() {
                         Section::Web => rsx! { WebSection {} },
                         Section::Source => rsx! { SourceSection {} },
-                        Section::Overlay => rsx! { OverlayLink { base: base.clone(), goto } },
+                        Section::Overlay => rsx! { crate::overlay::OverlayScreen { base: base.clone() } },
+                        Section::Diag => rsx! { crate::diag::Diag { linked } },
                         Section::Menu => rsx! { MenuSection {} },
                         Section::My => rsx! { PlayerSettings { sub: PlayerPart::Editable } },
                         Section::Djm => rsx! { PlayerSettings { sub: PlayerPart::Flat(Sub::Djm) } },
@@ -176,6 +202,7 @@ fn WebSection() -> Element {
                     button { class: if l.day { "on" } else { "" }, onclick: move |_| set_look.call(Look { day: true, ..look() }), "DAY" }
                 }
             }
+            AccentRow { look, set_look }
             div { class: "sr",
                 div { class: "sl", b { "Row density" } span { "Compact rows hide the artist line in the library." } }
                 div { class: "seg",
@@ -373,26 +400,6 @@ fn SourceSection() -> Element {
             }
             if !msg().is_empty() { div { class: "rn mono", "{msg()}" } }
             div { class: "rn", "The link mode, the network interface, the music folder and lazy analysis are options the daemon is started with (--mode, --interface, --music-dir, --lazy-analysis). The API does not expose them, so they cannot be changed here." }
-        }
-    }
-}
-
-// ---------------------------------------------------------------- overlay link
-
-#[component]
-fn OverlayLink(base: String, goto: EventHandler<Tab>) -> Element {
-    let url = overlay::url(&base);
-    rsx! {
-        div { class: "card",
-            div { class: "grp", "NOW-PLAYING OVERLAY FOR STREAMING" }
-            div { class: "sr",
-                div { class: "sl", b { "Browser source address" } span { "Add it in OBS with a transparent background." } }
-                input { class: "in mono", r#type: "text", readonly: true, value: "{url}", "aria-label": "Overlay address" }
-            }
-            div { class: "sr",
-                div { class: "sl", b { "Appearance and sections" } span { "Position, style, accent color, waveform and lists. Changes apply live." } }
-                button { class: "btn on", onclick: move |_| goto.call(Tab::Overlay), "OPEN THE OVERLAY PAGE" }
-            }
         }
     }
 }
@@ -642,6 +649,148 @@ fn PlayerSettings(sub: PlayerPart) -> Element {
                     if rows.is_empty() { span { class: "mut", "The daemon returned no {name} values." } }
                     div { class: "rn", "{note}" }
                     if !msg().is_empty() { div { class: "rn mono", "{msg()}" } }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- accent color
+
+const WHEEL: f64 = 168.0;
+
+/// The accent color: six presets, a hex field and a hue and saturation wheel with a brightness slider.
+#[component]
+fn AccentRow(look: Signal<Look>, set_look: Callback<Look>) -> Element {
+    let current = move || {
+        accent::parse_hex(&look().accent)
+            .or_else(|| accent::parse_hex(accent::DEFAULT))
+            .unwrap_or([255, 193, 90])
+    };
+    // The wheel keeps its own hue, saturation and value: converting back from the saved color would
+    // lose the hue of a grey and make the marker jump while dragging.
+    let mut hsv = use_signal(|| accent::to_hsv(current()));
+    let mut draft = use_signal(|| None::<String>);
+    let apply = move |rgb: [u8; 3]| {
+        let hex = accent::to_hex(rgb);
+        // The default is stored as "", so the stylesheet's own amber (and its light-theme shade) is used.
+        let hex = if hex.eq_ignore_ascii_case(accent::DEFAULT) {
+            String::new()
+        } else {
+            hex
+        };
+        set_look.call(Look {
+            accent: hex,
+            ..look()
+        });
+    };
+    let mut dragging = use_signal(|| false);
+    let mut from_pointer = move |x: f64, y: f64| {
+        let r = WHEEL / 2.0;
+        let (dx, dy) = (x - r, y - r);
+        let dist = (dx * dx + dy * dy).sqrt().min(r);
+        let mut h = dy.atan2(dx).to_degrees() + 90.0; // 0 degrees is straight up, as in the gradient
+        if h < 0.0 {
+            h += 360.0;
+        }
+        let v = hsv().2;
+        let next = (h, dist / r, v);
+        hsv.set(next);
+        apply(accent::from_hsv(next.0, next.1, next.2));
+    };
+    let (h, s, v) = hsv();
+    let a = h.to_radians();
+    let r = WHEEL / 2.0;
+    let (mx, my) = (r + a.sin() * s * r, r - a.cos() * s * r);
+    let cur = accent::to_hex(current());
+    let shown = draft().unwrap_or_else(|| cur.clone());
+    let is_default = look().accent.is_empty();
+    rsx! {
+        div { class: "sr acr",
+            div { class: "sl", b { "Accent color" } span { "Buttons, selected items and highlights. Pick one, or turn the wheel." } }
+            div { class: "acc",
+                div { class: "sw2",
+                    for (name , hex) in accent::PRESETS {
+                        button {
+                            key: "{hex}",
+                            class: if cur.eq_ignore_ascii_case(hex) { "on" } else { "" },
+                            style: "background:{hex}",
+                            "aria-label": "{name}",
+                            title: "{name}",
+                            onclick: move |_| {
+                                if let Some(rgb) = accent::parse_hex(hex) {
+                                    hsv.set(accent::to_hsv(rgb));
+                                    draft.set(None);
+                                    apply(rgb);
+                                }
+                            },
+                        }
+                    }
+                }
+                div { class: "acw",
+                    div {
+                        class: "wheel",
+                        role: "slider",
+                        "aria-label": "Accent hue and saturation",
+                        onpointerdown: move |e| {
+                            dragging.set(true);
+                            let p = e.element_coordinates();
+                            from_pointer(p.x, p.y);
+                        },
+                        onpointermove: move |e| {
+                            if dragging() {
+                                let p = e.element_coordinates();
+                                from_pointer(p.x, p.y);
+                            }
+                        },
+                        onpointerup: move |_| dragging.set(false),
+                        onpointerleave: move |_| dragging.set(false),
+                        onpointercancel: move |_| dragging.set(false),
+                        div { class: "wshade", style: "opacity:{1.0 - v}" }
+                        i { class: "wmark", style: "left:{mx}px;top:{my}px;background:{cur}" }
+                    }
+                    div { class: "acs",
+                        label { "BRIGHTNESS"
+                            input {
+                                r#type: "range", min: "5", max: "100", step: "1",
+                                "aria-label": "Accent brightness",
+                                value: "{(v * 100.0).round()}",
+                                oninput: move |e| {
+                                    if let Ok(p) = e.value().parse::<f64>() {
+                                        let (h, s, _) = hsv();
+                                        let next = (h, s, (p / 100.0).clamp(0.05, 1.0));
+                                        hsv.set(next);
+                                        apply(accent::from_hsv(next.0, next.1, next.2));
+                                    }
+                                },
+                            }
+                        }
+                        input {
+                            class: "in mono",
+                            r#type: "text",
+                            maxlength: "7",
+                            "aria-label": "Accent color, hex",
+                            value: "{shown}",
+                            oninput: move |e| draft.set(Some(e.value())),
+                            onchange: move |e| {
+                                draft.set(None);
+                                if let Some(rgb) = accent::parse_hex(&e.value()) {
+                                    hsv.set(accent::to_hsv(rgb));
+                                    apply(rgb);
+                                }
+                            },
+                        }
+                        button {
+                            class: "btn",
+                            disabled: is_default,
+                            onclick: move |_| {
+                                hsv.set(accent::to_hsv(accent::parse_hex(accent::DEFAULT).unwrap_or([255, 193, 90])));
+                                draft.set(None);
+                                set_look.call(Look { accent: String::new(), ..look() });
+                            },
+                            "RESET"
+                        }
+                    }
                 }
             }
         }

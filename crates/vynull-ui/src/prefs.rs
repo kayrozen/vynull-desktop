@@ -219,12 +219,15 @@ impl Locks {
 }
 
 /// Theme and row density, kept in this browser (or this machine) only.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Look {
     #[serde(default)]
     pub day: bool,
     #[serde(default)]
     pub compact: bool,
+    /// The accent color as `#RRGGBB`; empty is the default amber.
+    #[serde(default)]
+    pub accent: String,
 }
 
 impl Look {

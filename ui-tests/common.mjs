@@ -32,8 +32,19 @@ export async function connect(page, app, api) {
   await page.waitForSelector('.top');
 }
 
-export const openTab = (page, name) =>
-  page.evaluate((n) => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes(n)).click(), name);
+/** A tab by its label. Settings is the gear beside the connection button, and Diag and Overlay are
+ *  sections inside it, so those three are reached through the gear. */
+export async function openTab(page, name) {
+  const section = { SETTINGS: null, DIAG: 'DIAG', OVERLAY: 'STREAM OVERLAY' }[name];
+  if (section === undefined) {
+    return page.evaluate((n) => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes(n)).click(), name);
+  }
+  await page.evaluate(() => document.querySelector('.gear').click());
+  if (section) {
+    await page.waitForSelector('.pgs .ni');
+    await page.evaluate((x) => [...document.querySelectorAll('.pgs .ni')].find((b) => b.textContent === x).click(), section);
+  }
+}
 
 /** Click the first match whose text, aria-label or title starts with `text` (or equals it when `exact`). */
 export async function btn(page, ctx, sel, text, exact = false) {

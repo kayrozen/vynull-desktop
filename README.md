@@ -10,7 +10,7 @@ It talks to the daemon's HTTP API (version **0.6.0**) and needs a running daemon
 
 ## What it does
 
-Six screens, one per tab:
+Players, Library and Tags are tabs; Settings (which also holds Diag and Overlay) is the gear at the top right:
 
 - **Players** shows every deck on the Pro DJ Link network: track, tempo, key, beat and bar, master and sync,
   on-air state, and an overview waveform with cues and song phrases (a microphone marks sung ones). A
@@ -22,8 +22,9 @@ Six screens, one per tab:
 - **Track drawer** (click a row): zoom waveform with the real beat grid, bar numbers, cues and phrases; overview;
   playback in the browser or the desktop app with a metronome; tempo, tap, phase and grid shift; set the
   downbeat; hot and memory cues (add, drag, delete, loops); colour, tags and every metadata field.
-- **Tags**, **Settings** (web look, library source, player menu, and the daemon's own player, mixer and
-  waveform settings), **Diag** (counters and a live log) and **Overlay** (the streaming overlay configuration).
+- **Tags**, and **Settings** (the gear): web look with theme, density and an accent color (six presets or any
+  color from a wheel), library source, the streaming **overlay** configuration, **Diag** (counters and a live log),
+  the player menu, and the daemon's own player, mixer and waveform settings.
 
 Waveforms follow the daemon's own colour setting (Pioneer RGB, blue or three-band) and its overview type.
 

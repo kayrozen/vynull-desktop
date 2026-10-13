@@ -2,6 +2,7 @@
 //! ranking, key compatibility, playhead math, tap tempo, waveform overview
 //! paths, and host checks. Beat-grid and transport math for the track drawer is in `grid`.
 
+pub mod accent;
 pub mod columns;
 pub mod diag;
 pub mod grid;

@@ -341,7 +341,9 @@ ok('RGB: so is the overview', rgb.ov.length >= 1, JSON.stringify(rgb.ov.slice(0,
 ok('RGB: every color is on the 3-bit scale of the format (multiples of 38)', [...rgb.zoom, ...rgb.ov].every((f) => f.match(/\d+/g).every((n) => Number(n) % 38 === 0 || Number(n) === 255)), JSON.stringify([...new Set([...rgb.zoom, ...rgb.ov])].slice(0, 6)));
 
 // ---- the Overlay tab shows the daemon's real /overlay page, not a drawing of it
-await page.evaluate(() => [...document.querySelectorAll('.tab')].find((b) => b.textContent.includes('OVERLAY')).click());
+await page.evaluate(() => document.querySelector('.gear').click());
+await page.waitForSelector('.pgs .ni');
+await page.evaluate(() => [...document.querySelectorAll('.pgs .ni')].find((b) => b.textContent === 'STREAM OVERLAY').click());
 await page.waitForSelector('.pgo .stage iframe', { timeout: 15000 });
 const isOverlay = async (f) => f !== page.mainFrame() && (await f.evaluate(() => document.title).catch(() => '')).includes('Stream Overlay');
 const overlayFrame = await until(async () => { for (const f of page.frames()) if (await isOverlay(f)) return f; return false; }, 15000);

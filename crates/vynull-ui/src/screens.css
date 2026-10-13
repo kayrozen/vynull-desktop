@@ -8,7 +8,7 @@
 .pgt .ch b{font-size:17px;font-weight:600;flex:1}
 .pgt .tr{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 10px;border-radius:8px;border:0;background:none;width:100%;text-align:left;border-left:3px solid transparent}
 .pgt .tr:hover{background:var(--hover)}
-.pgt .tr.on{background:var(--hover);border-left-color:#FFC15A}
+.pgt .tr.on{background:var(--hover);border-left-color:var(--ac)}
 .pgt .tr i{width:12px;height:12px;border-radius:50%;flex:none}
 .pgt .tr .n{flex:1;font-weight:500}
 .pgt .tr .c{font-family:Cousine,monospace;font-size:13px;color:var(--mut)}
@@ -22,7 +22,7 @@
 .pgt .tcc{display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:8px;padding:8px 10px;font-family:Cousine,monospace;font-size:13px}
 .pgt .tcc i{width:14px;height:14px;border-radius:4px;flex:none}
 .pgt .tcc b{margin-left:auto;font-weight:500}
-.pgt .fl{display:inline-block;font-family:Cousine,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:4px;border:1px dashed #FFC15A;color:var(--accent-text)}
+.pgt .fl{display:inline-block;font-family:Cousine,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:4px;border:1px dashed var(--ac);color:var(--accent-text)}
 @media (max-width:760px){.pgt .pg{padding:16px}.pgt .top{padding:8px 16px}.pgt .ed{max-width:none}}
 /* .pgs */
 .pgs .note{padding:10px 24px;background:var(--deep);border-bottom:1px solid var(--line);font-family:Cousine,monospace;font-size:12px;letter-spacing:.08em;color:var(--accent-text)}
@@ -30,7 +30,7 @@
 .pgs .nav{flex:0 0 240px;box-sizing:border-box;background:var(--surface2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 0}
 .pgs .ni{display:flex;align-items:center;min-height:48px;padding:0 20px;border:0;background:none;font-family:Cousine,monospace;font-size:13px;letter-spacing:.06em;color:var(--mut);text-align:left;width:100%;box-sizing:border-box}
 .pgs .ni:hover{color:var(--text)}
-.pgs .ni.on{background:var(--chip);color:var(--accent-text);box-shadow:inset 3px 0 0 #FFC15A}
+.pgs .ni.on{background:var(--chip);color:var(--accent-text);box-shadow:inset 3px 0 0 var(--ac)}
 .pgs .cnt{flex:999 1 520px;min-width:0;padding:24px;display:flex;flex-direction:column;gap:20px}
 .pgs .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 16px;display:flex;flex-direction:column;min-width:0;max-width:1000px}
 .pgs .grp{font-family:Cousine,monospace;font-size:12px;letter-spacing:.08em;color:var(--mut);padding:12px 0 4px}
@@ -42,15 +42,15 @@
 .pgs .seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;max-width:100%;flex-wrap:wrap}
 .pgs .seg button{height:44px;min-width:56px;padding:0 14px;border:0;background:var(--chip);font-family:Cousine,monospace;font-size:12px;letter-spacing:.05em;color:var(--mut)}
 .pgs .seg button+button{border-left:1px solid var(--line2)}
-.pgs .seg button.on{background:#FFC15A;color:#05070A;font-weight:700}
+.pgs .seg button.on{background:var(--ac);color:var(--ac-on);font-weight:700}
 .pgs .tg{width:56px;height:32px;border-radius:99px;background:var(--line);position:relative;border:0;padding:0;flex:none}
 .pgs .tg i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--mut)}
-.pgs .tg.on{background:#FFC15A}
-.pgs .tg.on i{left:auto;right:4px;background:#05070A}
+.pgs .tg.on{background:var(--ac)}
+.pgs .tg.on i{left:auto;right:4px;background:var(--ac-on)}
 .pgs .in{height:44px;box-sizing:border-box;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:var(--surface2);font-size:14px;color:var(--text);min-width:0;flex:1 1 220px;max-width:420px}
 .pgs .rng{position:relative;flex:1 1 220px;max-width:420px;height:44px}
 .pgs .rng .t{position:absolute;left:0;right:0;top:20px;height:5px;border-radius:3px;background:var(--line)}
-.pgs .rng .f{position:absolute;top:20px;height:5px;border-radius:3px;background:#FFC15A}
+.pgs .rng .f{position:absolute;top:20px;height:5px;border-radius:3px;background:var(--ac)}
 .pgs .rng b{position:absolute;top:12px;width:20px;height:20px;border-radius:50%;background:var(--text);margin-left:-10px}
 .pgs .mi{display:flex;align-items:center;gap:12px;min-height:52px;border-bottom:1px solid var(--line3)}
 .pgs .mi .n{flex:1;font-weight:500}
@@ -66,7 +66,7 @@
 .pgs .wcl{flex:1 1 280px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .pgs .bnd{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 10px;border-radius:8px;border:0;border-left:3px solid transparent;background:none;text-align:left}
 .pgs .bnd:hover{background:var(--hover)}
-.pgs .bnd.on{background:var(--hover);border-left-color:#FFC15A}
+.pgs .bnd.on{background:var(--hover);border-left-color:var(--ac)}
 .pgs .bnd i{width:26px;height:26px;border-radius:8px;flex:none}
 .pgs .bnd .nm{flex:1;font-weight:500}
 .pgs .sw2{display:flex;flex-wrap:wrap;gap:8px}
@@ -88,9 +88,9 @@
 .pgd .flt{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .pgd .in{height:44px;box-sizing:border-box;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:var(--surface2);font-family:Cousine,monospace;font-size:14px;color:var(--text);min-width:0;flex:1 1 240px;max-width:420px}
 .pgd .chk{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:14px}
-.pgd .chk input{width:18px;height:18px;accent-color:#FFC15A}
+.pgd .chk input{width:18px;height:18px;accent-color:var(--ac)}
 .pgd .pill{height:32px;padding:0 12px;border-radius:99px;border:1px solid var(--line2);background:var(--chip);font-family:Cousine,monospace;font-size:12px}
-.pgd .pill.on{background:#FFC15A;border-color:#FFC15A;color:#05070A;font-weight:700}
+.pgd .pill.on{background:var(--ac);border-color:var(--ac);color:var(--ac-on);font-weight:700}
 .pgd .log{margin:0;background:var(--deep);border-radius:8px;padding:12px;font-family:Cousine,monospace;font-size:13px;line-height:1.6;overflow:auto;max-height:420px}
 .pgd .ln{display:block;white-space:pre-wrap;word-break:break-word}
 .pgd .ln.er{color:#FF9A9A}
@@ -117,17 +117,17 @@
 .pgo .seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;max-width:100%;flex-wrap:wrap}
 .pgo .seg button{height:44px;min-width:56px;padding:0 14px;border:0;background:var(--chip);font-family:Cousine,monospace;font-size:12px;letter-spacing:.05em;color:var(--mut)}
 .pgo .seg button+button{border-left:1px solid var(--line2)}
-.pgo .seg button.on{background:#FFC15A;color:#05070A;font-weight:700}
+.pgo .seg button.on{background:var(--ac);color:var(--ac-on);font-weight:700}
 .pgo .pos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
 .pgo .pos button{height:44px;border-radius:8px;border:1px solid var(--line2);background:var(--chip);font-family:Cousine,monospace;font-size:11px;letter-spacing:.05em;color:var(--mut)}
-.pgo .pos button.on{background:#FFC15A;border-color:#FFC15A;color:#05070A;font-weight:700}
+.pgo .pos button.on{background:var(--ac);border-color:var(--ac);color:var(--ac-on);font-weight:700}
 .pgo .sw{display:flex;gap:8px;flex-wrap:wrap}
 .pgo .sw button{width:44px;height:44px;border-radius:10px;border:2px solid transparent;padding:0}
 .pgo .sw button.on{border-color:var(--text)}
 .pgo .tg{width:56px;height:32px;border-radius:99px;background:var(--line);position:relative;border:0;padding:0;flex:none}
 .pgo .tg i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--mut)}
-.pgo .tg.on{background:#FFC15A}
-.pgo .tg.on i{left:auto;right:4px;background:#05070A}
+.pgo .tg.on{background:var(--ac)}
+.pgo .tg.on i{left:auto;right:4px;background:var(--ac-on)}
 .pgo .stp{display:inline-flex;align-items:center;gap:6px}
 .pgo .stp button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:var(--chip);font-size:20px;padding:0;line-height:1}
 .pgo .stp span{min-width:64px;text-align:center;font-family:Cousine,monospace;font-size:14px}
@@ -158,3 +158,18 @@
 .ovf-in{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;transform-origin:0 0;pointer-events:none;background:transparent}
 .pgo .stage .ovf{border-radius:0;box-shadow:none;aspect-ratio:auto;height:100%;background:none}
 .ovf-err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;text-align:center;font-family:Cousine,monospace;font-size:12px;color:var(--mut)}
+
+.pgs .acr{align-items:flex-start}
+.pgs .acc{display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.pgs .acw{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.pgs .wheel{position:relative;width:168px;height:168px;border-radius:50%;cursor:crosshair;touch-action:none;flex:none;background:radial-gradient(circle closest-side,#fff,rgba(255,255,255,0)),conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);border:1px solid var(--line2);overflow:hidden}
+.pgs .wshade{position:absolute;inset:0;background:#000;pointer-events:none}
+.pgs .wmark{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #000,inset 0 0 0 1px #000;pointer-events:none}
+.pgs .acs{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.pgs .acs label{display:flex;flex-direction:column;gap:6px;font-family:Cousine,monospace;font-size:12px;letter-spacing:.06em;color:var(--mut)}
+.pgs .acs .in{width:120px}
+/* Diag and Overlay live inside Settings: the section already has the title and the page padding. */
+.pgs .cnt .pg{padding:0}
+.pgs .cnt .pgo .hd .kick,.pgs .cnt .pgo .hd h1,.pgs .cnt .pgd .hd .kick,.pgs .cnt .pgd .hd h1{display:none}
+.pgs .acs .in{flex:none;height:44px;width:120px}
+.pgs .acs input[type=range]{accent-color:var(--ac)}
