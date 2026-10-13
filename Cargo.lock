@@ -5802,7 +5802,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vynull-api"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "reqwest 0.13.5",
  "serde",
@@ -5813,7 +5813,7 @@ dependencies = [
 
 [[package]]
 name = "vynull-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -5823,7 +5823,7 @@ dependencies = [
 
 [[package]]
 name = "vynull-desktop"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dioxus",
  "vynull-platform",
@@ -5832,7 +5832,7 @@ dependencies = [
 
 [[package]]
 name = "vynull-platform"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "cpal",
@@ -5857,7 +5857,7 @@ dependencies = [
 
 [[package]]
 name = "vynull-ui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "dioxus",
@@ -5871,7 +5871,7 @@ dependencies = [
 
 [[package]]
 name = "vynull-web"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "console_error_panic_hook",
  "dioxus",
